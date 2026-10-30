@@ -12,7 +12,7 @@ Builder jsonFactoryCollector(BuilderOptions options) => JsonFactoryCollector();
 
 /// Package-wide builder: merges the collected entries into one file, one mixin
 /// per mixin name. Options in `build.yaml`:
-/// - `output`: generated file, default `lib/generated/json_factory.g.dart`.
+/// - `output`: generated file, default `lib/generated/json_factory_runtime.g.dart`.
 /// - `key_field`: JSON field holding the runtime key, default
 ///   `__type__`.
 Builder jsonFactoryAggregator(BuilderOptions options) =>

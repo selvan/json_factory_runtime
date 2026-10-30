@@ -49,14 +49,14 @@ The key is written for nested objects and lists as well.
 dart run build_runner build
 ```
 
-This writes `lib/generated/json_factory.g.dart` with one mixin per mixin name. For the models above, that is `JsonFactoryMapper` (holding `User`) and `ApiMapper` (holding `Order`).
+This writes `lib/generated/json_factory_runtime.g.dart` with one mixin per mixin name. For the models above, that is `JsonFactoryMapper` (holding `User`) and `ApiMapper` (holding `Order`).
 
 ## Using the generated mixins
 
 A mixin can't be instantiated, so mix it into a class of your own. That can be an empty class:
 
 ```dart
-import 'generated/json_factory.g.dart';
+import 'generated/json_factory_runtime.g.dart';
 
 class ModelFactory with JsonFactoryMapper {
   const ModelFactory();
@@ -177,7 +177,7 @@ targets:
     builders:
       json_factory_runtime_generator:json_factory_aggregator:
         options:
-          output: lib/src/factories/json_factory.g.dart   # default: lib/generated/json_factory.g.dart
+          output: lib/src/factories/json_factory_runtime.g.dart   # default: lib/generated/json_factory_runtime.g.dart
           key_field: kind                                  # default: __type__
 ```
 

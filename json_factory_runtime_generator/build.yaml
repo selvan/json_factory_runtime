@@ -12,7 +12,7 @@ builders:
   json_factory_aggregator:
     import: "package:json_factory_runtime_generator/builder.dart"
     builder_factories: ["jsonFactoryAggregator"]
-    build_extensions: {"$lib$": ["generated/json_factory.g.dart"]}
+    build_extensions: {"$lib$": ["generated/json_factory_runtime.g.dart"]}
     required_inputs: [".json_factory.json"]
     auto_apply: dependents
     build_to: source

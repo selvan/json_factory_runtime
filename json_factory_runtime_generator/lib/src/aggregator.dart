@@ -11,7 +11,7 @@ import 'entry.dart';
 /// Default path of the generated file, relative to the package root.
 ///
 /// Override it with the `output` builder option in `build.yaml`.
-const aggregatorOutput = 'lib/generated/json_factory.g.dart';
+const aggregatorOutput = 'lib/generated/json_factory_runtime.g.dart';
 
 /// Thrown when two classes register the same key in the same mixin, or a
 /// `@jsonFactoryKey` name does not match the configured `key_field`.
@@ -51,7 +51,7 @@ class JsonFactoryAggregator implements Builder {
         output,
         'output',
         'json_factory_aggregator `output` must be a relative .dart path under '
-            'lib/, for example lib/generated/json_factory.g.dart',
+            'lib/, for example lib/generated/json_factory_runtime.g.dart',
       );
     }
   }
