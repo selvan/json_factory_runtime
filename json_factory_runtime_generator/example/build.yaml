@@ -1,0 +1,7 @@
+targets:
+  $default:
+    builders:
+      json_factory_runtime_generator:json_factory_aggregator:
+        options:
+          # Where the generated mixins go. Must be a .dart path under lib/.
+          output: lib/src/factories/json_factory.g.dart

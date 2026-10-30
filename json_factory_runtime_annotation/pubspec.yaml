@@ -1,0 +1,10 @@
+name: json_factory_runtime_annotation
+description: Annotation for json_factory_runtime_generator. Marks json_serializable classes to be registered in a generated factory mixin.
+version: 0.1.0
+
+environment:
+  sdk: ^3.5.0
+dev_dependencies:
+  lints: ^6.1.0
+dependencies:
+  json_annotation: ^4.9.0

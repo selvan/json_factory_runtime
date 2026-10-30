@@ -1,0 +1,5 @@
+# Local development only: the generator depends on the published annotation
+# package, so point it at the sibling checkout instead.
+dependency_overrides:
+  json_factory_runtime_annotation:
+    path: ../../json_factory_runtime_annotation

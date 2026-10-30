@@ -1,0 +1,18 @@
+builders:
+  json_factory_collector:
+    import: "package:json_factory_runtime_generator/builder.dart"
+    builder_factories: ["jsonFactoryCollector"]
+    build_extensions: {".dart": [".json_factory.json"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["json_factory_runtime_generator:json_factory_aggregator"]
+    defaults:
+      generate_for: ["lib/**"]
+
+  json_factory_aggregator:
+    import: "package:json_factory_runtime_generator/builder.dart"
+    builder_factories: ["jsonFactoryAggregator"]
+    build_extensions: {"$lib$": ["generated/json_factory.g.dart"]}
+    required_inputs: [".json_factory.json"]
+    auto_apply: dependents
+    build_to: source

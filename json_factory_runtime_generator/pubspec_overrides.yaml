@@ -1,0 +1,5 @@
+# Local development only: use the sibling annotation package instead of the
+# published one. Not included when publishing.
+dependency_overrides:
+  json_factory_runtime_annotation:
+    path: ../json_factory_runtime_annotation
