@@ -49,19 +49,124 @@ The key is written for nested objects and lists as well.
 dart run build_runner build
 ```
 
-This writes `lib/generated/json_factory.g.dart` with one mixin per mixin name:
+This writes `lib/generated/json_factory.g.dart` with one mixin per mixin name. For the models above, that is `JsonFactoryMapper` (holding `User`) and `ApiMapper` (holding `Order`).
+
+## Using the generated mixins
+
+A mixin can't be instantiated, so mix it into a class of your own. That can be an empty class:
 
 ```dart
 import 'generated/json_factory.g.dart';
 
-class ModelFactory with JsonFactoryMapper {}
-class ApiFactory with ApiMapper {}
+class ModelFactory with JsonFactoryMapper {
+  const ModelFactory();
+}
 
-final obj  = ModelFactory().fromKeyedJson(json);          // reads the key from json
-final user = ModelFactory().fromKeyedJsonAs<User>(json);  // typed
-final byKey = ModelFactory().fromJsonByKey('user', json); // key passed separately
-ModelFactory().hasMapperKey('user');                      // true
-JsonFactoryMapper.keyField;                               // '__type__'
+class ApiFactory with ApiMapper {
+  const ApiFactory();
+}
+```
+
+It can also be a class that already exists, such as a repository or an API client, which then gets the methods directly:
+
+```dart
+class UserRepository with JsonFactoryMapper {
+  Future<Object> load(String id) async => fromKeyedJson(await _fetch(id));
+
+  Future<Map<String, dynamic>> _fetch(String id) async => ...;
+}
+```
+
+### Methods
+
+| Member | Returns | Use when |
+|---|---|---|
+| `fromKeyedJson(json)` | `Object` | The key is in the JSON (`json['__type__']`). |
+| `fromKeyedJsonAs<T>(json)` | `T` | Same, and you know the type you expect. |
+| `fromJsonByKey(key, json)` | `Object` | The key comes from somewhere else, such as a URL or a header. |
+| `fromJsonAs<T>(key, json)` | `T` | Same, typed. |
+| `hasMapperKey(key)` | `bool` | Checking a key before decoding. |
+| `mapperKeys` | `Iterable<String>` | Listing every key in the mixin. |
+| `keyField` (static) | `String` | Reading the JSON field name, for example `JsonFactoryMapper.keyField`. |
+
+`keyField` is static, so read it through the mixin (`JsonFactoryMapper.keyField`), not through your class (`ModelFactory.keyField` doesn't compile).
+
+### Decoding a value whose type isn't known in advance
+
+```dart
+const factory = ModelFactory();
+
+final json = jsonDecode(body) as Map<String, dynamic>;
+// {"id": "1", "name": "Ada", "__type__": "user"}
+
+switch (factory.fromKeyedJson(json)) {
+  case User user:
+    print('user ${user.name}');
+  case Address address:
+    print('address in ${address.city}');
+  case final other:
+    print('unhandled ${other.runtimeType}');
+}
+```
+
+### Decoding a list of mixed types
+
+Each item carries its own key, so one call per item rebuilds the right class:
+
+```dart
+final items = (jsonDecode(body) as List)
+    .cast<Map<String, dynamic>>()
+    .map(factory.fromKeyedJson)
+    .toList();
+// [User(...), Address(...), User(...)]
+```
+
+### Round trip
+
+`toJson()` writes the key, so its output goes straight back through the factory:
+
+```dart
+final json = const User(id: '1', name: 'Ada').toJson();
+final copy = factory.fromKeyedJsonAs<User>(json);
+```
+
+The same applies to stored data, such as a cache or a local database, as long as it was written with `toJson()`.
+
+### Key passed separately
+
+When the JSON has no key field, for example because it comes from an endpoint that always returns one type, pass the key yourself:
+
+```dart
+final user = factory.fromJsonAs<User>('user', json);
+```
+
+### Errors
+
+Both of these throw an `ArgumentError`:
+
+- `fromKeyedJson` when the JSON has no string key field.
+- `fromJsonByKey` and `fromKeyedJson` when no class in that mixin is registered under the key.
+
+Use `hasMapperKey` to check first when the input isn't trusted:
+
+```dart
+final key = json[JsonFactoryMapper.keyField];
+if (key is String && factory.hasMapperKey(key)) {
+  return factory.fromJsonByKey(key, json);
+}
+return null;
+```
+
+`fromKeyedJsonAs<T>` and `fromJsonAs<T>` also throw a `TypeError` if the decoded object isn't a `T`.
+
+### Several mixins
+
+Each mixin only knows its own classes. The same key can mean different classes in different mixins:
+
+```dart
+const ModelFactory().fromJsonByKey('user', json); // User
+const ApiFactory().fromJsonByKey('user', json);   // ApiUser
+const ApiFactory().hasMapperKey('address');       // false
 ```
 
 ## Configuration (`build.yaml` next to your `pubspec.yaml`)
