@@ -20,6 +20,13 @@ class Order {
 }
 ```
 
+To rename a key without breaking JSON written with the old one, add the optional `oldKeys`. Old keys still decode to the class, and `toJson()` writes only the current key:
+
+```dart
+@jsonFactoryKey(oldKeys: ['person'])
+String get factoryKey => 'member';
+```
+
 `jsonFactoryKey` extends `JsonKey`, so `json_serializable` writes the key into `toJson()` (`"__type__": "user"`) and `fromJson` ignores it.
 
 Add this package to `dependencies` and the generator to `dev_dependencies`. See the [generator's README](https://pub.dev/packages/json_factory_runtime_generator) for setup, configuration and the generated API.

@@ -24,14 +24,15 @@ class User {
   Map<String, dynamic> toJson() => _$UserToJson(this);
 }
 
-/// Registered in a separate mixin, `ApiMapper`.
+/// Registered in a separate mixin, `ApiMapper`. Its key used to be
+/// 'purchase'; JSON with "__type__": "purchase" still decodes to `Order`.
 @JsonSerializable()
 class Order {
   final String id;
 
   const Order({required this.id});
 
-  @jsonFactoryKey(mixin: 'ApiMapper')
+  @jsonFactoryKey(mixin: 'ApiMapper', oldKeys: ['purchase'])
   String get factoryKey => 'order';
 
   factory Order.fromJson(Map<String, dynamic> json) => _$OrderFromJson(json);

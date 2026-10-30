@@ -25,9 +25,17 @@ const defaultJsonFactoryKeyField = '__type__';
 ///   @jsonFactoryKey(mixin: 'ApiMapper')
 ///   String get factoryKey => 'order';
 /// }
+///
+/// @JsonSerializable()
+/// class Member {
+///   // Renamed from 'person'; JSON with "__type__": "person" still decodes.
+///   @jsonFactoryKey(oldKeys: ['person'])
+///   String get factoryKey => 'member';
+/// }
 /// ```
 ///
-/// Keys must be unique within one mixin; a duplicate stops the build. [name]
+/// Keys, including [oldKeys], must be unique within one mixin; a duplicate
+/// stops the build. [name]
 /// must match the `key_field` option of `json_factory_aggregator` in
 /// `build.yaml`, or the build stops.
 // Lower-case so the annotation reads `@jsonFactoryKey(...)`.
@@ -38,9 +46,17 @@ class jsonFactoryKey extends JsonKey {
   /// Defaults to [defaultMixin] when omitted.
   final String? mixin;
 
+  /// Previous keys of this class, still accepted when decoding.
+  ///
+  /// Lets a key be renamed without breaking JSON written with an old one.
+  /// `toJson` writes only the current key. Old keys must be unique within the
+  /// mixin, together with every class's current key.
+  final List<String> oldKeys;
+
   const jsonFactoryKey({
     String name = defaultJsonFactoryKeyField,
     this.mixin,
+    this.oldKeys = const [],
   }) : super(name: name, includeToJson: true, includeFromJson: false);
 
   /// Mixin name used when [mixin] is not given.

@@ -5,6 +5,9 @@ class JsonFactoryEntry {
   final String mixin;
   final String className;
 
+  /// Previous keys, still mapped to [className] when decoding.
+  final List<String> oldKeys;
+
   /// JSON field the key is written to (the annotation's `name`).
   final String field;
 
@@ -15,6 +18,7 @@ class JsonFactoryEntry {
     required this.key,
     required this.mixin,
     required this.className,
+    this.oldKeys = const [],
     required this.field,
     required this.importUri,
   });
@@ -24,6 +28,7 @@ class JsonFactoryEntry {
         key: json['key'] as String,
         mixin: json['mixin'] as String,
         className: json['className'] as String,
+        oldKeys: (json['oldKeys'] as List?)?.cast<String>() ?? const [],
         field: json['field'] as String,
         importUri: json['importUri'] as String,
       );
@@ -32,6 +37,7 @@ class JsonFactoryEntry {
         'key': key,
         'mixin': mixin,
         'className': className,
+        'oldKeys': oldKeys,
         'field': field,
         'importUri': importUri,
       };

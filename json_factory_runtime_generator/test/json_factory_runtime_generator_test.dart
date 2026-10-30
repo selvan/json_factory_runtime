@@ -162,6 +162,94 @@ class Order {
     expect(result.succeeded, isTrue, reason: _errors(result));
   });
 
+  group('oldKeys', () {
+    test('map to the same class but are not listed in mapperKeys', () async {
+      final result = await _build({
+        'a|lib/member.dart': _model(
+          'Member',
+          "@jsonFactoryKey(oldKeys: ['user', 'person']) "
+              "String get k => 'member';",
+        ),
+      });
+      expect(result.succeeded, isTrue, reason: _errors(result));
+
+      final code = _generated(result);
+      expect(code, contains("'member': i0.Member.fromJson,\n"));
+      expect(
+        code,
+        contains("'person': i0.Member.fromJson, // old key of Member"),
+      );
+      expect(
+        code,
+        contains("'user': i0.Member.fromJson, // old key of Member"),
+      );
+      expect(code, contains("_\$keys = ['member'];"));
+    });
+
+    test('conflicting with another class\'s key stops the build', () async {
+      final result = await _build({
+        'a|lib/user.dart':
+            _model('User', "@jsonFactoryKey() String get k => 'user';"),
+        'a|lib/member.dart': _model(
+          'Member',
+          "@jsonFactoryKey(oldKeys: ['user']) String get k => 'member';",
+        ),
+      });
+      expect(result.succeeded, isFalse);
+      expect(
+        _errors(result),
+        contains("key 'user' in mixin JsonFactoryMapper"),
+      );
+      expect(_errors(result), contains('User (package:a/user.dart)'));
+      expect(
+        _errors(result),
+        contains('Member (package:a/member.dart, old key)'),
+      );
+      expect(result.outputs, isNot(contains(_outputId)));
+    });
+
+    test('conflicting with another class\'s old key stops the build', () async {
+      final result = await _build({
+        'a|lib/user.dart': _model(
+          'User',
+          "@jsonFactoryKey(oldKeys: ['person']) String get k => 'user';",
+        ),
+        'a|lib/member.dart': _model(
+          'Member',
+          "@jsonFactoryKey(oldKeys: ['person']) String get k => 'member';",
+        ),
+      });
+      expect(result.succeeded, isFalse);
+      expect(
+        _errors(result),
+        contains("key 'person' in mixin JsonFactoryMapper"),
+      );
+      expect(
+        _errors(result),
+        contains('User (package:a/user.dart, old key)'),
+      );
+      expect(
+        _errors(result),
+        contains('Member (package:a/member.dart, old key)'),
+      );
+    });
+
+    test('the same old key in different mixins is allowed', () async {
+      final result = await _build({
+        'a|lib/user.dart': _model(
+          'User',
+          "@jsonFactoryKey(oldKeys: ['person']) String get k => 'user';",
+        ),
+        'a|lib/member.dart': _model(
+          'Member',
+          "@jsonFactoryKey(mixin: 'ApiMapper', oldKeys: ['person']) "
+              "String get k => 'member';",
+        ),
+      });
+      expect(result.succeeded, isTrue, reason: _errors(result));
+    });
+  });
+
   group('key_field', () {
     JsonFactoryAggregator configured(String field) =>
         JsonFactoryAggregator.fromOptions(
@@ -268,6 +356,36 @@ class Bad {
   String get k => 'bad';
 }
 ''', 'not a valid public'));
+
+    test('empty old key', () => expectError('''
+@JsonSerializable()
+class Bad {
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
+  Bad._();
+  @jsonFactoryKey(oldKeys: [''])
+  String get k => 'bad';
+}
+''', 'must be non-empty strings'));
+
+    test('old key equal to the key', () => expectError('''
+@JsonSerializable()
+class Bad {
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
+  Bad._();
+  @jsonFactoryKey(oldKeys: ['bad'])
+  String get k => 'bad';
+}
+''', "'bad' is both the key and an old key of `Bad`"));
+
+    test('old key listed twice', () => expectError('''
+@JsonSerializable()
+class Bad {
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
+  Bad._();
+  @jsonFactoryKey(oldKeys: ['old', 'old'])
+  String get k => 'bad';
+}
+''', "lists 'old' twice"));
   });
 
   test('output option moves the generated file', () async {

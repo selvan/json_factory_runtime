@@ -2,7 +2,7 @@
 
 A small project that uses `json_factory_runtime_generator`.
 
-- [`lib/models/`](lib/models/): `User` and `Address` in the default `JsonFactoryMapper` mixin, `Order` and `ApiUser` in `ApiMapper`.
+- [`lib/models/`](lib/models/): `User` and `Address` in the default `JsonFactoryMapper` mixin (`Address` also accepts its old key `'location'`), `Order` and `ApiUser` in `ApiMapper`.
 - [`build.yaml`](build.yaml): writes the mixins to `lib/src/factories/json_factory_runtime.g.dart`.
 - [`lib/factories.dart`](lib/factories.dart): classes that mix them in.
 - [`test/factory_test.dart`](test/factory_test.dart): round-trips JSON through the factories.

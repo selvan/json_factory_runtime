@@ -13,8 +13,9 @@ import 'entry.dart';
 /// Override it with the `output` builder option in `build.yaml`.
 const aggregatorOutput = 'lib/generated/json_factory_runtime.g.dart';
 
-/// Thrown when two classes register the same key in the same mixin, or a
-/// `@jsonFactoryKey` name does not match the configured `key_field`.
+/// Thrown when two classes register the same key (current or old) in the same
+/// mixin, or a `@jsonFactoryKey` name does not match the configured
+/// `key_field`.
 class JsonFactoryConflictException implements Exception {
   final String message;
   JsonFactoryConflictException(this.message);
@@ -100,12 +101,13 @@ class JsonFactoryAggregator implements Builder {
     );
   }
 
-  /// Groups entries by mixin and key, throwing on any duplicate key within a
-  /// mixin so the build stops before anything is written.
-  Map<String, Map<String, JsonFactoryEntry>> _groupAndCheck(
+  /// Groups entries by mixin and key, current and old keys alike, throwing on
+  /// any duplicate key within a mixin so the build stops before anything is
+  /// written.
+  Map<String, Map<String, Registration>> _groupAndCheck(
     List<JsonFactoryEntry> entries,
   ) {
-    final byMixin = <String, Map<String, JsonFactoryEntry>>{};
+    final byMixin = <String, Map<String, Registration>>{};
     final conflicts = <String>[];
     final wrongField = [
       for (final e in entries)
@@ -122,36 +124,50 @@ class JsonFactoryAggregator implements Builder {
     }
     for (final entry in entries) {
       final keys = byMixin.putIfAbsent(entry.mixin, () => {});
-      final existing = keys[entry.key];
-      if (existing != null) {
-        conflicts.add(
-          "  key '${entry.key}' in mixin ${entry.mixin}: "
-          '${existing.location} and ${entry.location}',
-        );
-        continue;
+      final registrations = [
+        (key: entry.key, entry: entry, isOld: false),
+        for (final oldKey in entry.oldKeys)
+          (key: oldKey, entry: entry, isOld: true),
+      ];
+      for (final registration in registrations) {
+        final existing = keys[registration.key];
+        if (existing != null) {
+          conflicts.add(
+            "  key '${registration.key}' in mixin ${entry.mixin}: "
+            '${_describe(existing)} and ${_describe(registration)}',
+          );
+          continue;
+        }
+        keys[registration.key] = registration;
       }
-      keys[entry.key] = entry;
     }
     if (conflicts.isNotEmpty) {
       throw JsonFactoryConflictException(
         'Duplicate @jsonFactoryKey keys, generation stopped:\n'
         '${conflicts.join('\n')}\n'
-        'Use a unique key, or register one of the classes in a different '
-        'mixin with `@jsonFactoryKey(mixin: ...)`.',
+        'Use a unique key or old key, or register one of the classes in a '
+        'different mixin with `@jsonFactoryKey(mixin: ...)`.',
       );
     }
     return byMixin;
   }
+
+  static String _describe(Registration r) => r.isOld
+      ? '${r.entry.className} (${r.entry.importUri}, old key)'
+      : r.entry.location;
 }
+
+/// One key in a mixin: the class it builds and whether it is an old key.
+typedef Registration = ({String key, JsonFactoryEntry entry, bool isOld});
 
 /// Renders the generated library. Public for tests.
 String generate(
-  Map<String, Map<String, JsonFactoryEntry>> byMixin, {
+  Map<String, Map<String, Registration>> byMixin, {
   String keyField = defaultJsonFactoryKeyField,
 }) {
   final uris = {
     for (final keys in byMixin.values)
-      for (final e in keys.values) e.importUri,
+      for (final r in keys.values) r.entry.importUri,
   }.toList()
     ..sort();
   final prefix = {for (var i = 0; i < uris.length; i++) uris[i]: 'i$i'};
@@ -180,12 +196,22 @@ String generate(
           '  static const Map<String, Object Function(Map<String, dynamic>)> '
           '_\$factories = {');
     for (final key in keys.keys.toList()..sort()) {
-      final e = keys[key]!;
+      final r = keys[key]!;
+      final e = r.entry;
       out.writeln(
-          '    ${_literal(key)}: ${prefix[e.importUri]}.${e.className}.fromJson,');
+          '    ${_literal(key)}: ${prefix[e.importUri]}.${e.className}.fromJson,'
+          '${r.isOld ? ' // old key of ${e.className}' : ''}');
     }
+    final currentKeys = [
+      for (final r in keys.values)
+        if (!r.isOld) r.key,
+    ]..sort();
     out
       ..writeln('  };')
+      ..writeln()
+      ..writeln('  static const List<String> _\$keys = [')
+      ..writeln([for (final k in currentKeys) '    ${_literal(k)},'].join('\n'))
+      ..writeln('  ];')
       ..writeln()
       ..writeln('  /// Builds the class registered under [key] from [json].')
       ..writeln('  ///')
@@ -224,12 +250,16 @@ String generate(
       ..writeln('  T fromKeyedJsonAs<T>(Map<String, dynamic> json) =>')
       ..writeln('      fromKeyedJson(json) as T;')
       ..writeln()
-      ..writeln('  /// Whether a class is registered under [key].')
+      ..writeln(
+          '  /// Whether a class is registered under [key], current or old.')
       ..writeln(
           '  bool hasMapperKey(String key) => _\$factories.containsKey(key);')
       ..writeln()
-      ..writeln('  /// All registered keys.')
-      ..writeln('  Iterable<String> get mapperKeys => _\$factories.keys;')
+      ..writeln('  /// All current keys.')
+      ..writeln('  ///')
+      ..writeln('  /// Old keys are accepted by [hasMapperKey] and the `from*` '
+          'methods but not listed.')
+      ..writeln('  Iterable<String> get mapperKeys => _\$keys;')
       ..writeln('}');
   }
 

@@ -10,7 +10,8 @@ class Address {
 
   const Address({required this.city, required this.zip});
 
-  @jsonFactoryKey()
+  /// Was 'location'; JSON written with the old key still decodes.
+  @jsonFactoryKey(oldKeys: ['location'])
   String get factoryKey => 'address';
 
   factory Address.fromJson(Map<String, dynamic> json) =>

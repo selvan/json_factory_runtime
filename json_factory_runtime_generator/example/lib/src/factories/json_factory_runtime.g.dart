@@ -15,6 +15,8 @@ mixin ApiMapper {
   static const Map<String, Object Function(Map<String, dynamic>)> _$factories =
       {'order': i1.Order.fromJson, 'user': i1.ApiUser.fromJson};
 
+  static const List<String> _$keys = ['order', 'user'];
+
   /// Builds the class registered under [key] from [json].
   ///
   /// Throws [ArgumentError] if no class is registered under [key].
@@ -48,11 +50,13 @@ mixin ApiMapper {
   /// Typed variant of [fromKeyedJson].
   T fromKeyedJsonAs<T>(Map<String, dynamic> json) => fromKeyedJson(json) as T;
 
-  /// Whether a class is registered under [key].
+  /// Whether a class is registered under [key], current or old.
   bool hasMapperKey(String key) => _$factories.containsKey(key);
 
-  /// All registered keys.
-  Iterable<String> get mapperKeys => _$factories.keys;
+  /// All current keys.
+  ///
+  /// Old keys are accepted by [hasMapperKey] and the `from*` methods but not listed.
+  Iterable<String> get mapperKeys => _$keys;
 }
 
 /// JSON factory for classes registered with `@jsonFactoryKey(mixin: 'JsonFactoryMapper')`.
@@ -61,7 +65,13 @@ mixin JsonFactoryMapper {
   static const String keyField = '__type__';
 
   static const Map<String, Object Function(Map<String, dynamic>)> _$factories =
-      {'address': i0.Address.fromJson, 'user': i2.User.fromJson};
+      {
+        'address': i0.Address.fromJson,
+        'location': i0.Address.fromJson, // old key of Address
+        'user': i2.User.fromJson,
+      };
+
+  static const List<String> _$keys = ['address', 'user'];
 
   /// Builds the class registered under [key] from [json].
   ///
@@ -96,9 +106,11 @@ mixin JsonFactoryMapper {
   /// Typed variant of [fromKeyedJson].
   T fromKeyedJsonAs<T>(Map<String, dynamic> json) => fromKeyedJson(json) as T;
 
-  /// Whether a class is registered under [key].
+  /// Whether a class is registered under [key], current or old.
   bool hasMapperKey(String key) => _$factories.containsKey(key);
 
-  /// All registered keys.
-  Iterable<String> get mapperKeys => _$factories.keys;
+  /// All current keys.
+  ///
+  /// Old keys are accepted by [hasMapperKey] and the `from*` methods but not listed.
+  Iterable<String> get mapperKeys => _$keys;
 }

@@ -46,6 +46,22 @@ void main() {
     expect(models.fromKeyedJson(customer), isA<User>());
   });
 
+  test('old keys still decode but are not listed', () {
+    final address = models.fromKeyedJson({
+      keyField: 'location',
+      'city': 'Chennai',
+      'zip': '600001',
+    });
+    expect(address, isA<Address>());
+    expect(models.hasMapperKey('location'), isTrue);
+    expect(models.mapperKeys, isNot(contains('location')));
+    expect(
+      (address as Address).toJson()[keyField],
+      'address',
+      reason: 'toJson writes the current key',
+    );
+  });
+
   test('named mixin has its own keys', () {
     expect(api.fromJsonByKey('user', {'login': 'ada'}), isA<ApiUser>());
     expect(api.hasMapperKey('address'), isFalse);

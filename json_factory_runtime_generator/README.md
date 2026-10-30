@@ -45,6 +45,17 @@ class Order {
 
 The key is written for nested objects and lists as well.
 
+### Renaming a key
+
+To rename a key without breaking JSON that was already stored or sent with the old one, list the previous keys in `oldKeys`. It is optional; leave it out when a class has never been renamed.
+
+```dart
+@jsonFactoryKey(oldKeys: ['user', 'person'])
+String get factoryKey => 'member';
+```
+
+`toJson()` now writes `"__type__": "member"`, and the generated mixin still decodes `"user"` and `"person"` to the same class.
+
 ```bash
 dart run build_runner build
 ```
@@ -85,8 +96,8 @@ class UserRepository with JsonFactoryMapper {
 | `fromKeyedJsonAs<T>(json)` | `T` | Same, and you know the type you expect. |
 | `fromJsonByKey(key, json)` | `Object` | The key comes from somewhere else, such as a URL or a header. |
 | `fromJsonAs<T>(key, json)` | `T` | Same, typed. |
-| `hasMapperKey(key)` | `bool` | Checking a key before decoding. |
-| `mapperKeys` | `Iterable<String>` | Listing every key in the mixin. |
+| `hasMapperKey(key)` | `bool` | Checking a key before decoding. Old keys count. |
+| `mapperKeys` | `Iterable<String>` | Listing the current keys in the mixin. Old keys aren't listed. |
 | `keyField` (static) | `String` | Reading the JSON field name, for example `JsonFactoryMapper.keyField`. |
 
 `keyField` is static, so read it through the mixin (`JsonFactoryMapper.keyField`), not through your class (`ModelFactory.keyField` doesn't compile).
@@ -194,6 +205,7 @@ targets:
 
 ## Rules
 - A key must be unique within a mixin. If two classes share one, the build stops and the error names both classes. The same key can be used in different mixins.
+- Old keys count as keys: within a mixin, each old key must differ from every class's current key and every other old key, or the build stops and the error marks which side is the old key. An old key also can't be empty, repeat in the list, or equal its own class's current key.
 - The annotated getter has to be an instance getter that returns a string literal: `=> 'user'` or `{ return 'user'; }`. Each class can have only one.
 - The class must be annotated with `@JsonSerializable`; otherwise the build stops, because the key would never be written to its JSON.
 - The class has to be public, non-generic and under `lib/`. It also needs a `fromJson(Map<String, dynamic>)` factory or static method.

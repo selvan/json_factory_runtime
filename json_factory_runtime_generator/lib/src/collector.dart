@@ -149,6 +149,8 @@ class JsonFactoryCollector implements Builder {
       );
     }
 
+    final oldKeys = _oldKeys(annotation, key, className, getter);
+
     final importUri = library.uri;
     if (importUri.scheme != 'package') {
       throw InvalidGenerationSource(
@@ -162,9 +164,45 @@ class JsonFactoryCollector implements Builder {
       key: key,
       mixin: mixin,
       className: className,
+      oldKeys: oldKeys,
       field: field,
       importUri: importUri.toString(),
     );
+  }
+
+  /// Reads `oldKeys`, which must be non-empty strings, distinct from each
+  /// other and from the current [key].
+  List<String> _oldKeys(
+    ConstantReader annotation,
+    String key,
+    String className,
+    GetterElement getter,
+  ) {
+    final oldKeys = <String>[];
+    for (final object in annotation.read('oldKeys').listValue) {
+      final oldKey = object.toStringValue();
+      if (oldKey == null || oldKey.isEmpty) {
+        throw InvalidGenerationSource(
+          '@jsonFactoryKey oldKeys on `$className` must be non-empty strings.',
+          element: getter,
+        );
+      }
+      if (oldKey == key) {
+        throw InvalidGenerationSource(
+          "'$oldKey' is both the key and an old key of `$className`.",
+          element: getter,
+          todo: "Remove '$oldKey' from oldKeys.",
+        );
+      }
+      if (oldKeys.contains(oldKey)) {
+        throw InvalidGenerationSource(
+          "@jsonFactoryKey oldKeys on `$className` lists '$oldKey' twice.",
+          element: getter,
+        );
+      }
+      oldKeys.add(oldKey);
+    }
+    return oldKeys;
   }
 
   /// Reads the key from the getter body, which must return a plain string
