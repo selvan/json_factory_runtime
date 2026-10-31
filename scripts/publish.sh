@@ -14,6 +14,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PACKAGES="$ROOT/packages"
 ANNOTATION=json_factory_runtime_annotation
 GENERATOR=json_factory_runtime_generator
 
@@ -28,7 +29,7 @@ for arg in "$@"; do
 done
 
 version_of() {
-  sed -n 's/^version:[[:space:]]*//p' "$ROOT/$1/pubspec.yaml"
+  sed -n 's/^version:[[:space:]]*//p' "$PACKAGES/$1/pubspec.yaml"
 }
 
 is_on_pub_dev() {
@@ -39,14 +40,14 @@ is_on_pub_dev() {
 publish() {
   echo "==> dart pub publish ${publish_args[*]:-} ($1)"
   if ! $dry_run; then
-    (cd "$ROOT/$1" && dart pub publish "${publish_args[@]+"${publish_args[@]}"}")
+    (cd "$PACKAGES/$1" && dart pub publish "${publish_args[@]+"${publish_args[@]}"}")
     return
   fi
   # A dry run exits with 65 for warnings as well as errors, so only fail when
   # pub says the package can't be published.
   local log
   log="$(mktemp)"
-  (cd "$ROOT/$1" && dart pub publish --dry-run) 2>&1 | tee "$log" || true
+  (cd "$PACKAGES/$1" && dart pub publish --dry-run) 2>&1 | tee "$log" || true
   if grep -q "can't be published" "$log"; then
     rm -f "$log"
     exit 1
@@ -62,7 +63,7 @@ if is_on_pub_dev "$ANNOTATION" "$annotation_version"; then
   echo "==> $ANNOTATION $annotation_version is already on pub.dev, skipping"
   annotation_live=true
 else
-  (cd "$ROOT/$ANNOTATION" && dart pub get >/dev/null)
+  (cd "$PACKAGES/$ANNOTATION" && dart pub get >/dev/null)
   publish "$ANNOTATION"
   annotation_live=false
   if ! $dry_run; then
@@ -88,12 +89,12 @@ if is_on_pub_dev "$GENERATOR" "$generator_version"; then
   exit 0
 fi
 
-overrides="$ROOT/$GENERATOR/pubspec_overrides.yaml"
+overrides="$PACKAGES/$GENERATOR/pubspec_overrides.yaml"
 if $annotation_live && [[ -f "$overrides" ]]; then
   mv "$overrides" "$overrides.bak"
   restore() {
     mv "$overrides.bak" "$overrides"
-    (cd "$ROOT/$GENERATOR" && dart pub get >/dev/null)
+    (cd "$PACKAGES/$GENERATOR" && dart pub get >/dev/null)
   }
   trap restore EXIT
 elif ! $annotation_live; then
@@ -103,6 +104,6 @@ elif ! $annotation_live; then
 fi
 
 echo "==> Testing $GENERATOR"
-(cd "$ROOT/$GENERATOR" && dart pub get >/dev/null && dart test)
+(cd "$PACKAGES/$GENERATOR" && dart pub get >/dev/null && dart test)
 
 publish "$GENERATOR"
