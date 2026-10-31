@@ -126,7 +126,7 @@ class JsonFactoryCollector implements Builder {
         element: getter,
       );
     }
-    _checkFromJson(element, className);
+    final fromJsonOwner = _checkFromJson(element, className);
 
     final key = await _keyLiteral(getter, className, buildStep);
     final field = annotation.read('name').stringValue;
@@ -160,6 +160,16 @@ class JsonFactoryCollector implements Builder {
       );
     }
 
+    final fromJsonUri = fromJsonOwner.library.uri;
+    if (fromJsonUri.scheme != 'package') {
+      throw InvalidGenerationSource(
+        '`${fromJsonOwner.name}.fromJson`, used by `$className`, must live '
+        'under lib/ so it can be imported with a package: URI '
+        '(found $fromJsonUri).',
+        element: element,
+      );
+    }
+
     return JsonFactoryEntry(
       key: key,
       mixin: mixin,
@@ -167,6 +177,8 @@ class JsonFactoryCollector implements Builder {
       oldKeys: oldKeys,
       field: field,
       importUri: importUri.toString(),
+      fromJsonClass: fromJsonOwner.name!,
+      fromJsonUri: fromJsonUri.toString(),
     );
   }
 
@@ -234,30 +246,58 @@ class JsonFactoryCollector implements Builder {
   }
 
   /// Requires `fromJson` as a factory/constructor or a static method whose
-  /// only required parameter is the JSON map.
-  void _checkFromJson(ClassElement element, String className) {
-    final ExecutableElement? fromJson =
-        element.getNamedConstructor('fromJson') ??
-            switch (element.getMethod('fromJson')) {
-              final m? when m.isStatic => m,
-              _ => null,
-            };
+  /// only required parameter is the JSON map, on [element] or else on the
+  /// nearest superclass declaring one. Returns the class that declares it.
+  InterfaceElement _checkFromJson(ClassElement element, String className) {
+    InterfaceElement? owner = element;
+    ExecutableElement? fromJson;
+    while (owner != null) {
+      fromJson = owner.getNamedConstructor('fromJson') ??
+          switch (owner.getMethod('fromJson')) {
+            final m? when m.isStatic => m,
+            _ => null,
+          };
+      if (fromJson != null) break;
+      owner = owner.supertype?.element;
+    }
 
-    if (fromJson == null) {
+    if (owner == null || fromJson == null) {
       throw InvalidGenerationSource(
         '`$className` has a @jsonFactoryKey getter but no '
         '`fromJson(Map<String, dynamic>)` factory constructor or static '
-        'method.',
+        'method, on itself or a superclass.',
         element: element,
         todo: 'Add `factory $className.fromJson(Map<String, dynamic> json) '
             '=> _\$${className}FromJson(json);`',
       );
     }
+    final ownerName = owner.name;
+    if (owner != element) {
+      if (ownerName == null || owner.isPrivate) {
+        throw InvalidGenerationSource(
+          '`$className` uses `fromJson` of private superclass `$ownerName`: '
+          'the generated factory has to import it.',
+          element: element,
+          todo: 'Add `factory $className.fromJson(Map<String, dynamic> json)` '
+              'to `$className`.',
+        );
+      }
+      if (owner.typeParameters.isNotEmpty) {
+        throw InvalidGenerationSource(
+          '`$className` uses `fromJson` of generic superclass `$ownerName`: '
+          'it needs extra arguments for the type parameters.',
+          element: element,
+          todo: 'Add `factory $className.fromJson(Map<String, dynamic> json)` '
+              'to `$className`.',
+        );
+      }
+    }
     if (fromJson is ConstructorElement &&
-        element.isAbstract &&
+        owner is ClassElement &&
+        owner.isAbstract &&
         !fromJson.isFactory) {
       throw InvalidGenerationSource(
-        '`$className.fromJson` must be a factory: `$className` is abstract.',
+        '`$ownerName.fromJson` must be a factory: `$ownerName` is abstract.',
         element: fromJson,
       );
     }
@@ -270,10 +310,11 @@ class JsonFactoryCollector implements Builder {
         requiredNamed > 0 ||
         !params.first.isPositional) {
       throw InvalidGenerationSource(
-        '`$className.fromJson` must take the JSON map as its only required '
+        '`$ownerName.fromJson` must take the JSON map as its only required '
         'argument.',
         element: fromJson,
       );
     }
+    return owner;
   }
 }

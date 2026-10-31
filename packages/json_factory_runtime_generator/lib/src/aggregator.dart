@@ -167,7 +167,7 @@ String generate(
 }) {
   final uris = {
     for (final keys in byMixin.values)
-      for (final r in keys.values) r.entry.importUri,
+      for (final r in keys.values) r.entry.fromJsonUri,
   }.toList()
     ..sort();
   final prefix = {for (var i = 0; i < uris.length; i++) uris[i]: 'i$i'};
@@ -198,9 +198,13 @@ String generate(
     for (final key in keys.keys.toList()..sort()) {
       final r = keys[key]!;
       final e = r.entry;
+      final notes = [
+        if (r.isOld) 'old key of ${e.className}',
+        if (e.fromJsonClass != e.className) 'inherited by ${e.className}',
+      ];
       out.writeln(
-          '    ${_literal(key)}: ${prefix[e.importUri]}.${e.className}.fromJson,'
-          '${r.isOld ? ' // old key of ${e.className}' : ''}');
+          '    ${_literal(key)}: ${prefix[e.fromJsonUri]}.${e.fromJsonClass}.fromJson,'
+          '${notes.isEmpty ? '' : ' // ${notes.join(', ')}'}');
     }
     final currentKeys = [
       for (final r in keys.values)

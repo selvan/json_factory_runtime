@@ -14,6 +14,13 @@ class JsonFactoryEntry {
   /// `package:` URI of the library that declares [className].
   final String importUri;
 
+  /// Class whose `fromJson` builds [className]: [className] itself, or the
+  /// nearest superclass declaring one.
+  final String fromJsonClass;
+
+  /// `package:` URI of the library that declares [fromJsonClass].
+  final String fromJsonUri;
+
   const JsonFactoryEntry({
     required this.key,
     required this.mixin,
@@ -21,7 +28,10 @@ class JsonFactoryEntry {
     this.oldKeys = const [],
     required this.field,
     required this.importUri,
-  });
+    String? fromJsonClass,
+    String? fromJsonUri,
+  })  : fromJsonClass = fromJsonClass ?? className,
+        fromJsonUri = fromJsonUri ?? importUri;
 
   factory JsonFactoryEntry.fromJson(Map<String, dynamic> json) =>
       JsonFactoryEntry(
@@ -31,6 +41,8 @@ class JsonFactoryEntry {
         oldKeys: (json['oldKeys'] as List?)?.cast<String>() ?? const [],
         field: json['field'] as String,
         importUri: json['importUri'] as String,
+        fromJsonClass: json['fromJsonClass'] as String?,
+        fromJsonUri: json['fromJsonUri'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -40,6 +52,8 @@ class JsonFactoryEntry {
         'oldKeys': oldKeys,
         'field': field,
         'importUri': importUri,
+        'fromJsonClass': fromJsonClass,
+        'fromJsonUri': fromJsonUri,
       };
 
   /// Human-readable location used in error messages.

@@ -114,6 +114,42 @@ class Item {
     expect(_generated(result), contains("'item': i0.Item.fromJson"));
   });
 
+  test('uses the nearest superclass fromJson when the class has none',
+      () async {
+    final result = await _build({
+      'a|lib/shape.dart': '''
+$_imports
+import 'circle.dart';
+abstract class Shape {
+  Shape();
+  factory Shape.fromJson(Map<String, dynamic> json) => Circle();
+}
+''',
+      'a|lib/circle.dart': '''
+$_imports
+import 'shape.dart';
+@JsonSerializable()
+class Circle extends Shape {
+  @jsonFactoryKey(oldKeys: ['round'])
+  String get factoryKey => 'circle';
+}
+''',
+    });
+    expect(result.succeeded, isTrue, reason: _errors(result));
+    final code = _generated(result);
+    expect(code, contains("import 'package:a/shape.dart' as i0;"));
+    expect(code, isNot(contains('circle.dart')));
+    expect(
+      code,
+      contains("'circle': i0.Shape.fromJson, // inherited by Circle"),
+    );
+    expect(
+      code,
+      contains("'round': i0.Shape.fromJson, "
+          '// old key of Circle, inherited by Circle'),
+    );
+  });
+
   test('accepts a user-defined annotation constant', () async {
     final result = await _build({
       'a|lib/keys.dart': '''
@@ -313,6 +349,18 @@ class Bad {
   String get k => 'bad';
 }
 ''', 'no `fromJson'));
+
+    test('fromJson only on a private superclass', () => expectError('''
+abstract class _Base {
+  _Base();
+  factory _Base.fromJson(Map<String, dynamic> json) => Bad();
+}
+@JsonSerializable()
+class Bad extends _Base {
+  @jsonFactoryKey()
+  String get k => 'bad';
+}
+''', 'private superclass `_Base`'));
 
     test('non-literal key', () => expectError('''
 const name = 'bad';
