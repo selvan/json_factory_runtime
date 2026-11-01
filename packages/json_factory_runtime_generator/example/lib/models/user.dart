@@ -11,7 +11,7 @@ class User {
   const User({required this.id, required this.name});
 
   @jsonFactoryKey()
-  String get factoryKey => 'user';
+  final String factoryKey = 'user';
 
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
   Map<String, dynamic> toJson() => _$UserToJson(this);

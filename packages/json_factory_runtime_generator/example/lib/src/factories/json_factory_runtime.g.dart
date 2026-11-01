@@ -4,18 +4,23 @@
 // ignore_for_file: type=lint
 
 import 'package:example/models/address.dart' as i0;
-import 'package:example/models/order.dart' as i1;
-import 'package:example/models/user.dart' as i2;
+import 'package:example/models/event.dart' as i1;
+import 'package:example/models/order.dart' as i2;
+import 'package:example/models/user.dart' as i3;
 
-/// JSON factory for classes registered with `@jsonFactoryKey(mixin: 'ApiMapper')`.
-mixin ApiMapper {
+/// JSON factory for classes registered with `@jsonFactoryKey(mixin: 'ApiMixin')`.
+mixin ApiMixin {
   /// JSON field that holds the runtime key.
   static const String keyField = '__type__';
 
   static const Map<String, Object Function(Map<String, dynamic>)> _$factories =
-      {'order': i1.Order.fromJson, 'user': i1.ApiUser.fromJson};
+      {
+        'api_event': i1.ApiEvent.fromJson,
+        'order': i2.Order.fromJson,
+        'user': i2.ApiUser.fromJson,
+      };
 
-  static const List<String> _$keys = ['order', 'user'];
+  static const List<String> _$keys = ['api_event', 'order', 'user'];
 
   /// Builds the class registered under [key] from [json].
   ///
@@ -26,7 +31,7 @@ mixin ApiMapper {
       throw ArgumentError.value(
         key,
         'key',
-        'No @jsonFactoryKey class registered in ApiMapper',
+        'No @jsonFactoryKey class registered in ApiMixin',
       );
     }
     return factory(json);
@@ -59,8 +64,43 @@ mixin ApiMapper {
   Iterable<String> get mapperKeys => _$keys;
 }
 
-/// JSON factory for classes registered with `@jsonFactoryKey(mixin: 'JsonFactoryMapper')`.
-mixin JsonFactoryMapper {
+/// Static access to [ApiMixin], for example `ApiMapper.fromKeyedJson(json)`.
+abstract final class ApiMapper {
+  /// [ApiMixin] as an object, for code that takes one.
+  static const ApiMixin instance = _$ApiMixin();
+
+  /// See [ApiMixin.keyField].
+  static const String keyField = ApiMixin.keyField;
+
+  /// See [ApiMixin.fromJsonByKey].
+  static Object fromJsonByKey(String key, Map<String, dynamic> json) =>
+      instance.fromJsonByKey(key, json);
+
+  /// See [ApiMixin.fromJsonAs].
+  static T fromJsonAs<T>(String key, Map<String, dynamic> json) =>
+      instance.fromJsonAs<T>(key, json);
+
+  /// See [ApiMixin.fromKeyedJson].
+  static Object fromKeyedJson(Map<String, dynamic> json) =>
+      instance.fromKeyedJson(json);
+
+  /// See [ApiMixin.fromKeyedJsonAs].
+  static T fromKeyedJsonAs<T>(Map<String, dynamic> json) =>
+      instance.fromKeyedJsonAs<T>(json);
+
+  /// See [ApiMixin.hasMapperKey].
+  static bool hasMapperKey(String key) => instance.hasMapperKey(key);
+
+  /// See [ApiMixin.mapperKeys].
+  static Iterable<String> get mapperKeys => instance.mapperKeys;
+}
+
+final class _$ApiMixin with ApiMixin {
+  const _$ApiMixin();
+}
+
+/// JSON factory for classes registered with `@jsonFactoryKey(mixin: 'JsonFactoryMixin')`.
+mixin JsonFactoryMixin {
   /// JSON field that holds the runtime key.
   static const String keyField = '__type__';
 
@@ -68,7 +108,7 @@ mixin JsonFactoryMapper {
       {
         'address': i0.Address.fromJson,
         'location': i0.Address.fromJson, // old key of Address
-        'user': i2.User.fromJson,
+        'user': i3.User.fromJson,
       };
 
   static const List<String> _$keys = ['address', 'user'];
@@ -82,7 +122,7 @@ mixin JsonFactoryMapper {
       throw ArgumentError.value(
         key,
         'key',
-        'No @jsonFactoryKey class registered in JsonFactoryMapper',
+        'No @jsonFactoryKey class registered in JsonFactoryMixin',
       );
     }
     return factory(json);
@@ -113,4 +153,39 @@ mixin JsonFactoryMapper {
   ///
   /// Old keys are accepted by [hasMapperKey] and the `from*` methods but not listed.
   Iterable<String> get mapperKeys => _$keys;
+}
+
+/// Static access to [JsonFactoryMixin], for example `JsonFactoryMapper.fromKeyedJson(json)`.
+abstract final class JsonFactoryMapper {
+  /// [JsonFactoryMixin] as an object, for code that takes one.
+  static const JsonFactoryMixin instance = _$JsonFactoryMixin();
+
+  /// See [JsonFactoryMixin.keyField].
+  static const String keyField = JsonFactoryMixin.keyField;
+
+  /// See [JsonFactoryMixin.fromJsonByKey].
+  static Object fromJsonByKey(String key, Map<String, dynamic> json) =>
+      instance.fromJsonByKey(key, json);
+
+  /// See [JsonFactoryMixin.fromJsonAs].
+  static T fromJsonAs<T>(String key, Map<String, dynamic> json) =>
+      instance.fromJsonAs<T>(key, json);
+
+  /// See [JsonFactoryMixin.fromKeyedJson].
+  static Object fromKeyedJson(Map<String, dynamic> json) =>
+      instance.fromKeyedJson(json);
+
+  /// See [JsonFactoryMixin.fromKeyedJsonAs].
+  static T fromKeyedJsonAs<T>(Map<String, dynamic> json) =>
+      instance.fromKeyedJsonAs<T>(json);
+
+  /// See [JsonFactoryMixin.hasMapperKey].
+  static bool hasMapperKey(String key) => instance.hasMapperKey(key);
+
+  /// See [JsonFactoryMixin.mapperKeys].
+  static Iterable<String> get mapperKeys => instance.mapperKeys;
+}
+
+final class _$JsonFactoryMixin with JsonFactoryMixin {
+  const _$JsonFactoryMixin();
 }

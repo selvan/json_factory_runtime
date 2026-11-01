@@ -141,6 +141,28 @@ class JsonFactoryAggregator implements Builder {
         keys[registration.key] = registration;
       }
     }
+    final clashes = <String>[];
+    final mapperOf = <String, String>{};
+    for (final mixin in byMixin.keys.toList()..sort()) {
+      final mapper = mapperName(mixin);
+      if (byMixin.containsKey(mapper)) {
+        clashes.add('  mixin $mapper has the name of the mapper class '
+            'generated for mixin $mixin');
+      }
+      if (mapperOf[mapper] case final other?) {
+        clashes.add('  mixins $other and $mixin both generate mapper class '
+            '$mapper');
+      }
+      mapperOf[mapper] = mixin;
+    }
+    if (clashes.isNotEmpty) {
+      throw JsonFactoryConflictException(
+        'Mixin names clash with generated mapper classes, generation '
+        'stopped:\n'
+        '${clashes.join('\n')}\n'
+        'Rename one of the mixins with `@jsonFactoryKey(mixin: ...)`.',
+      );
+    }
     if (conflicts.isNotEmpty) {
       throw JsonFactoryConflictException(
         'Duplicate @jsonFactoryKey keys, generation stopped:\n'
@@ -265,11 +287,61 @@ String generate(
           'methods but not listed.')
       ..writeln('  Iterable<String> get mapperKeys => _\$keys;')
       ..writeln('}');
+
+    final mapper = mapperName(mixin);
+    final impl = '_\$$mixin';
+    out
+      ..writeln()
+      ..writeln('/// Static access to [$mixin], for example '
+          '`$mapper.fromKeyedJson(json)`.')
+      ..writeln('abstract final class $mapper {')
+      ..writeln('  /// [$mixin] as an object, for code that takes one.')
+      ..writeln('  static const $mixin instance = $impl();')
+      ..writeln()
+      ..writeln('  /// See [$mixin.keyField].')
+      ..writeln('  static const String keyField = $mixin.keyField;')
+      ..writeln()
+      ..writeln('  /// See [$mixin.fromJsonByKey].')
+      ..writeln(
+          '  static Object fromJsonByKey(String key, Map<String, dynamic> json) =>')
+      ..writeln('      instance.fromJsonByKey(key, json);')
+      ..writeln()
+      ..writeln('  /// See [$mixin.fromJsonAs].')
+      ..writeln(
+          '  static T fromJsonAs<T>(String key, Map<String, dynamic> json) =>')
+      ..writeln('      instance.fromJsonAs<T>(key, json);')
+      ..writeln()
+      ..writeln('  /// See [$mixin.fromKeyedJson].')
+      ..writeln('  static Object fromKeyedJson(Map<String, dynamic> json) =>')
+      ..writeln('      instance.fromKeyedJson(json);')
+      ..writeln()
+      ..writeln('  /// See [$mixin.fromKeyedJsonAs].')
+      ..writeln('  static T fromKeyedJsonAs<T>(Map<String, dynamic> json) =>')
+      ..writeln('      instance.fromKeyedJsonAs<T>(json);')
+      ..writeln()
+      ..writeln('  /// See [$mixin.hasMapperKey].')
+      ..writeln(
+          '  static bool hasMapperKey(String key) => instance.hasMapperKey(key);')
+      ..writeln()
+      ..writeln('  /// See [$mixin.mapperKeys].')
+      ..writeln(
+          '  static Iterable<String> get mapperKeys => instance.mapperKeys;')
+      ..writeln('}')
+      ..writeln()
+      ..writeln('final class $impl with $mixin {')
+      ..writeln('  const $impl();')
+      ..writeln('}');
   }
 
   return DartFormatter(languageVersion: DartFormatter.latestLanguageVersion)
       .format(out.toString());
 }
+
+/// Name of the generated static class for [mixin]: a trailing `Mixin`
+/// becomes `Mapper`, any other name gets `Mapper` appended.
+String mapperName(String mixin) => mixin.endsWith('Mixin') && mixin != 'Mixin'
+    ? '${mixin.substring(0, mixin.length - 'Mixin'.length)}Mapper'
+    : '${mixin}Mapper';
 
 /// Single-quoted Dart string literal for [value].
 String _literal(String value) {

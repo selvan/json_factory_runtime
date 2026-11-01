@@ -9,28 +9,29 @@ const defaultJsonFactoryKeyField = '__type__';
 /// Registers the enclosing `@JsonSerializable` class in a generated JSON
 /// factory mixin.
 ///
-/// Put it on a getter that returns the key as a string literal. Because this
-/// is a [JsonKey], `json_serializable` writes the key into `toJson()` under
+/// Put it on a `final String` field initialized with the key as a string
+/// literal, or on a final enum field initialized with a constant that has a
+/// string `@JsonValue`. Because this is a [JsonKey], `json_serializable` writes the key into `toJson()` under
 /// [name]; `fromJson` ignores it.
 ///
 /// ```dart
 /// @JsonSerializable()
 /// class User {
 ///   @jsonFactoryKey()
-///   String get factoryKey => 'user';
+///   final String factoryKey = 'user';
 /// }
 ///
 /// @JsonSerializable()
 /// class Order {
-///   @jsonFactoryKey(mixin: 'ApiMapper')
-///   String get factoryKey => 'order';
+///   @jsonFactoryKey(mixin: 'ApiMixin')
+///   final String factoryKey = 'order';
 /// }
 ///
 /// @JsonSerializable()
 /// class Member {
 ///   // Renamed from 'person'; JSON with "__type__": "person" still decodes.
 ///   @jsonFactoryKey(oldKeys: ['person'])
-///   String get factoryKey => 'member';
+///   final String factoryKey = 'member';
 /// }
 /// ```
 ///
@@ -42,6 +43,10 @@ const defaultJsonFactoryKeyField = '__type__';
 // ignore: camel_case_types
 class jsonFactoryKey extends JsonKey {
   /// Name of the generated mixin the class is registered in.
+  ///
+  /// A static `Mapper` class is generated next to it: a trailing `Mixin` is
+  /// replaced with `Mapper` (`ApiMixin` gives `ApiMapper`), any other name
+  /// gets `Mapper` appended.
   ///
   /// Defaults to [defaultMixin] when omitted.
   final String? mixin;
@@ -60,5 +65,5 @@ class jsonFactoryKey extends JsonKey {
   }) : super(name: name, includeToJson: true, includeFromJson: false);
 
   /// Mixin name used when [mixin] is not given.
-  static const String defaultMixin = 'JsonFactoryMapper';
+  static const String defaultMixin = 'JsonFactoryMixin';
 }

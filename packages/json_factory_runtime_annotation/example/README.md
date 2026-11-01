@@ -16,15 +16,15 @@ class User {
   const User({required this.id, required this.name});
 
   /// Registers `User` under the key `'user'` in the default
-  /// `JsonFactoryMapper` mixin. `toJson()` writes `"__type__": "user"`.
+  /// `JsonFactoryMixin` mixin (decoded with `JsonFactoryMapper`). `toJson()` writes `"__type__": "user"`.
   @jsonFactoryKey()
-  String get factoryKey => 'user';
+  final String factoryKey = 'user';
 
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
   Map<String, dynamic> toJson() => _$UserToJson(this);
 }
 
-/// Registered in a separate mixin, `ApiMapper`. Its key used to be
+/// Registered in a separate mixin, `ApiMixin` (decoded with `ApiMapper`). Its key used to be
 /// 'purchase'; JSON with "__type__": "purchase" still decodes to `Order`.
 @JsonSerializable()
 class Order {
@@ -32,8 +32,8 @@ class Order {
 
   const Order({required this.id});
 
-  @jsonFactoryKey(mixin: 'ApiMapper', oldKeys: ['purchase'])
-  String get factoryKey => 'order';
+  @jsonFactoryKey(mixin: 'ApiMixin', oldKeys: ['purchase'])
+  final String factoryKey = 'order';
 
   factory Order.fromJson(Map<String, dynamic> json) => _$OrderFromJson(json);
   Map<String, dynamic> toJson() => _$OrderToJson(this);

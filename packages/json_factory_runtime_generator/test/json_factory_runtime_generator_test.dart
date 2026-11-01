@@ -12,14 +12,14 @@ import 'package:json_annotation/json_annotation.dart';
 import 'package:json_factory_runtime_annotation/json_factory_runtime_annotation.dart';
 ''';
 
-/// A model with a `fromJson` factory and the given key getter.
-String _model(String className, String getter) => '''
+/// A model with a `fromJson` factory and the given key field.
+String _model(String className, String field) => '''
 $_imports
 @JsonSerializable()
 class $className {
   $className();
   factory $className.fromJson(Map<String, dynamic> json) => $className();
-  $getter
+  $field
 }
 ''';
 
@@ -76,10 +76,10 @@ void main() {
   test('generates default and named mixins', () async {
     final result = await _build({
       'a|lib/user.dart':
-          _model('User', "@jsonFactoryKey() String get factoryKey => 'user';"),
+          _model('User', "@jsonFactoryKey() final String factoryKey = 'user';"),
       'a|lib/order.dart': _model(
         'Order',
-        "@jsonFactoryKey(mixin: 'ApiMapper') String get kind => 'order';",
+        "@jsonFactoryKey(mixin: 'ApiMixin') final String kind = 'order';",
       ),
       'a|lib/plain.dart': 'class Plain {}',
     });
@@ -88,15 +88,26 @@ void main() {
     final code = _generated(result);
     expect(code, contains("import 'package:a/order.dart' as i0;"));
     expect(code, contains("import 'package:a/user.dart' as i1;"));
-    expect(code, contains('mixin ApiMapper {'));
+    expect(code, contains('mixin ApiMixin {'));
     expect(code, contains("'order': i0.Order.fromJson"));
-    expect(code, contains('mixin JsonFactoryMapper {'));
+    expect(code, contains('mixin JsonFactoryMixin {'));
     expect(code, contains("'user': i1.User.fromJson"));
     expect(code, contains("static const String keyField = '__type__';"));
     expect(code, contains('Object fromKeyedJson(Map<String, dynamic> json)'));
+    expect(code, contains('abstract final class JsonFactoryMapper {'));
+    expect(
+      code,
+      contains(
+          'static const JsonFactoryMixin instance = _\$JsonFactoryMixin();'),
+    );
+    expect(code,
+        contains('static T fromKeyedJsonAs<T>(Map<String, dynamic> json)'));
+    expect(code,
+        contains('final class _\$JsonFactoryMixin with JsonFactoryMixin'));
+    expect(code, contains('abstract final class ApiMapper {'));
   });
 
-  test('reads a block-bodied getter and a static fromJson', () async {
+  test('reads a static fromJson', () async {
     final result = await _build({
       'a|lib/item.dart': '''
 $_imports
@@ -104,14 +115,58 @@ $_imports
 class Item {
   static Item fromJson(Map<String, dynamic> json) => Item();
   @jsonFactoryKey()
-  String get factoryKey {
-    return 'item';
-  }
+  final String factoryKey = 'item';
 }
 ''',
     });
     expect(result.succeeded, isTrue, reason: _errors(result));
     expect(_generated(result), contains("'item': i0.Item.fromJson"));
+  });
+
+  test('reads the @JsonValue of an enum constant', () async {
+    final result = await _build({
+      'a|lib/kind.dart': '''
+$_imports
+enum Kind {
+  @JsonValue('the_item')
+  item,
+}
+''',
+      'a|lib/item.dart': '''
+$_imports
+import 'kind.dart' as k;
+@JsonSerializable()
+class Item {
+  factory Item.fromJson(Map<String, dynamic> json) => Item._();
+  Item._();
+  @jsonFactoryKey(oldKeys: ['thing'])
+  final k.Kind factoryKey = k.Kind.item;
+}
+''',
+    });
+    expect(result.succeeded, isTrue, reason: _errors(result));
+    final code = _generated(result);
+    expect(code, contains("'the_item': i0.Item.fromJson"));
+    expect(code, contains("'thing': i0.Item.fromJson"));
+  });
+
+  test('reads a final field', () async {
+    final result = await _build({
+      'a|lib/item.dart': '''
+$_imports
+@JsonSerializable()
+class Item {
+  const Item();
+  factory Item.fromJson(Map<String, dynamic> json) => const Item();
+  @jsonFactoryKey(oldKeys: ['thing'])
+  final String factoryKey = 'item';
+}
+''',
+    });
+    expect(result.succeeded, isTrue, reason: _errors(result));
+    final code = _generated(result);
+    expect(code, contains("'item': i0.Item.fromJson"));
+    expect(code, contains("'thing': i0.Item.fromJson"));
   });
 
   test('uses the nearest superclass fromJson when the class has none',
@@ -131,7 +186,7 @@ import 'shape.dart';
 @JsonSerializable()
 class Circle extends Shape {
   @jsonFactoryKey(oldKeys: ['round'])
-  String get factoryKey => 'circle';
+  final String factoryKey = 'circle';
 }
 ''',
     });
@@ -154,7 +209,7 @@ class Circle extends Shape {
     final result = await _build({
       'a|lib/keys.dart': '''
 $_imports
-const apiKey = jsonFactoryKey(mixin: 'ApiMapper');
+const apiKey = jsonFactoryKey(mixin: 'ApiMixin');
 ''',
       'a|lib/order.dart': '''
 $_imports
@@ -164,35 +219,60 @@ class Order {
   factory Order.fromJson(Map<String, dynamic> json) => Order._();
   Order._();
   @apiKey
-  String get factoryKey => 'order';
+  final String factoryKey = 'order';
 }
 ''',
     });
     expect(result.succeeded, isTrue, reason: _errors(result));
-    expect(_generated(result), contains('mixin ApiMapper {'));
+    expect(_generated(result), contains('mixin ApiMixin {'));
   });
 
   test('duplicate key in the same mixin stops the build', () async {
     final result = await _build({
       'a|lib/user.dart':
-          _model('User', "@jsonFactoryKey() String get k => 'user';"),
+          _model('User', "@jsonFactoryKey() final String k = 'user';"),
       'a|lib/admin.dart':
-          _model('Admin', "@jsonFactoryKey() String get k => 'user';"),
+          _model('Admin', "@jsonFactoryKey() final String k = 'user';"),
     });
     expect(result.succeeded, isFalse);
-    expect(_errors(result), contains("key 'user' in mixin JsonFactoryMapper"));
+    expect(_errors(result), contains("key 'user' in mixin JsonFactoryMixin"));
     expect(_errors(result), contains('Admin (package:a/admin.dart)'));
     expect(_errors(result), contains('User (package:a/user.dart)'));
     expect(result.outputs, isNot(contains(_outputId)));
   });
 
+  group('mixin names clashing with mapper classes stop the build:', () {
+    Future<void> expectClash(String m1, String m2, String message) async {
+      final result = await _build({
+        'a|lib/user.dart': _model(
+            'User', "@jsonFactoryKey(mixin: '$m1') final String k = 'u';"),
+        'a|lib/admin.dart': _model(
+            'Admin', "@jsonFactoryKey(mixin: '$m2') final String k = 'a';"),
+      });
+      expect(result.succeeded, isFalse);
+      expect(_errors(result), contains(message));
+      expect(result.outputs, isNot(contains(_outputId)));
+    }
+
+    test(
+      'a mixin named like another mixin\'s mapper',
+      () => expectClash('Api', 'ApiMapper',
+          'mixin ApiMapper has the name of the mapper class generated for mixin Api'),
+    );
+    test(
+      'two mixins with the same mapper',
+      () => expectClash('Api', 'ApiMixin',
+          'mixins Api and ApiMixin both generate mapper class ApiMapper'),
+    );
+  });
+
   test('same key in different mixins is allowed', () async {
     final result = await _build({
       'a|lib/user.dart':
-          _model('User', "@jsonFactoryKey() String get k => 'user';"),
+          _model('User', "@jsonFactoryKey() final String k = 'user';"),
       'a|lib/admin.dart': _model(
         'Admin',
-        "@jsonFactoryKey(mixin: 'AdminMapper') String get k => 'user';",
+        "@jsonFactoryKey(mixin: 'AdminMapper') final String k = 'user';",
       ),
     });
     expect(result.succeeded, isTrue, reason: _errors(result));
@@ -204,7 +284,7 @@ class Order {
         'a|lib/member.dart': _model(
           'Member',
           "@jsonFactoryKey(oldKeys: ['user', 'person']) "
-              "String get k => 'member';",
+              "final String k = 'member';",
         ),
       });
       expect(result.succeeded, isTrue, reason: _errors(result));
@@ -225,16 +305,16 @@ class Order {
     test('conflicting with another class\'s key stops the build', () async {
       final result = await _build({
         'a|lib/user.dart':
-            _model('User', "@jsonFactoryKey() String get k => 'user';"),
+            _model('User', "@jsonFactoryKey() final String k = 'user';"),
         'a|lib/member.dart': _model(
           'Member',
-          "@jsonFactoryKey(oldKeys: ['user']) String get k => 'member';",
+          "@jsonFactoryKey(oldKeys: ['user']) final String k = 'member';",
         ),
       });
       expect(result.succeeded, isFalse);
       expect(
         _errors(result),
-        contains("key 'user' in mixin JsonFactoryMapper"),
+        contains("key 'user' in mixin JsonFactoryMixin"),
       );
       expect(_errors(result), contains('User (package:a/user.dart)'));
       expect(
@@ -248,17 +328,17 @@ class Order {
       final result = await _build({
         'a|lib/user.dart': _model(
           'User',
-          "@jsonFactoryKey(oldKeys: ['person']) String get k => 'user';",
+          "@jsonFactoryKey(oldKeys: ['person']) final String k = 'user';",
         ),
         'a|lib/member.dart': _model(
           'Member',
-          "@jsonFactoryKey(oldKeys: ['person']) String get k => 'member';",
+          "@jsonFactoryKey(oldKeys: ['person']) final String k = 'member';",
         ),
       });
       expect(result.succeeded, isFalse);
       expect(
         _errors(result),
-        contains("key 'person' in mixin JsonFactoryMapper"),
+        contains("key 'person' in mixin JsonFactoryMixin"),
       );
       expect(
         _errors(result),
@@ -274,12 +354,12 @@ class Order {
       final result = await _build({
         'a|lib/user.dart': _model(
           'User',
-          "@jsonFactoryKey(oldKeys: ['person']) String get k => 'user';",
+          "@jsonFactoryKey(oldKeys: ['person']) final String k = 'user';",
         ),
         'a|lib/member.dart': _model(
           'Member',
-          "@jsonFactoryKey(mixin: 'ApiMapper', oldKeys: ['person']) "
-              "String get k => 'member';",
+          "@jsonFactoryKey(mixin: 'ApiMixin', oldKeys: ['person']) "
+              "final String k = 'member';",
         ),
       });
       expect(result.succeeded, isTrue, reason: _errors(result));
@@ -297,7 +377,7 @@ class Order {
         {
           'a|lib/user.dart': _model(
             'User',
-            "@jsonFactoryKey(name: 'kind') String get k => 'user';",
+            "@jsonFactoryKey(name: 'kind') final String k = 'user';",
           ),
         },
         aggregator: configured('kind'),
@@ -313,7 +393,7 @@ class Order {
       final result = await _build(
         {
           'a|lib/user.dart':
-              _model('User', "@jsonFactoryKey() String get k => 'user';"),
+              _model('User', "@jsonFactoryKey() final String k = 'user';"),
         },
         aggregator: configured('kind'),
       );
@@ -338,7 +418,7 @@ class Bad {
   factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
   Bad._();
   @jsonFactoryKey()
-  String get k => 'bad';
+  final String k = 'bad';
 }
 ''', 'is not annotated with @JsonSerializable'));
 
@@ -346,7 +426,7 @@ class Bad {
 @JsonSerializable()
 class Bad {
   @jsonFactoryKey()
-  String get k => 'bad';
+  final String k = 'bad';
 }
 ''', 'no `fromJson'));
 
@@ -358,7 +438,7 @@ abstract class _Base {
 @JsonSerializable()
 class Bad extends _Base {
   @jsonFactoryKey()
-  String get k => 'bad';
+  final String k = 'bad';
 }
 ''', 'private superclass `_Base`'));
 
@@ -369,29 +449,117 @@ class Bad {
   factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
   Bad._();
   @jsonFactoryKey()
-  String get k => name;
+  final String k = name;
 }
-''', 'must return a non-empty string literal'));
+''', 'non-empty string literal'));
 
-    test('annotation on a field', () => expectError('''
+    Future<void> expectFieldError(String field, String message) => expectError(
+          '''
 @JsonSerializable()
 class Bad {
   factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
   Bad._();
   @jsonFactoryKey()
-  final String k = 'bad';
+  $field
 }
-''', 'must be on a getter'));
+''',
+          message,
+        );
 
-    test('two key getters', () => expectError('''
+    group('enum field', () {
+      Future<void> expectEnumError(String enumBody, String field) =>
+          expectError(
+            '''
+enum Kind { $enumBody }
 @JsonSerializable()
 class Bad {
   factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
   Bad._();
   @jsonFactoryKey()
-  String get a => 'a';
+  $field
+}
+''',
+            'annotated with a non-empty string @JsonValue',
+          );
+
+      test(
+        'constant without @JsonValue',
+        () => expectEnumError('a', 'final Kind k = Kind.a;'),
+      );
+      test(
+        'constant with an int @JsonValue',
+        () => expectEnumError('@JsonValue(1) a', 'final Kind k = Kind.a;'),
+      );
+      test(
+        'constant with an empty @JsonValue',
+        () => expectEnumError("@JsonValue('') a", 'final Kind k = Kind.a;'),
+      );
+      test(
+        'initializer that is not a constant',
+        () => expectEnumError(
+          "@JsonValue('a') a",
+          'final Kind k = Kind.values.first;',
+        ),
+      );
+    });
+
+    test('annotation on a getter', () => expectError('''
+@JsonSerializable()
+class Bad {
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
+  Bad._();
   @jsonFactoryKey()
-  String get b => 'b';
+  String get k => 'bad';
+}
+''', 'must be on a final String field, not the getter'));
+
+    test(
+      'field that is not a String',
+      () => expectFieldError("final Object k = 'bad';", 'must be a `String`'),
+    );
+    test(
+      'nullable String field',
+      () => expectFieldError("final String? k = 'bad';", 'must be a `String`'),
+    );
+    test(
+      'non-final field',
+      () => expectFieldError("String k = 'bad';", 'must be final and not late'),
+    );
+    test(
+      'late final field',
+      () => expectFieldError(
+        "late final String k = 'bad';",
+        'must be final and not late',
+      ),
+    );
+    test(
+      'static field',
+      () => expectFieldError(
+        "static const String k = 'bad';",
+        'must not be static',
+      ),
+    );
+    test(
+      'final field without an initializer',
+      () => expectFieldError('final String k;', 'non-empty string literal'),
+    );
+    test(
+      'final field with a non-literal initializer',
+      () => expectFieldError(
+        "final String k = 'b' + 'ad';",
+        'non-empty string literal',
+      ),
+    );
+
+    test('two key fields', () => expectError('''
+@JsonSerializable()
+class Bad {
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
+  Bad._();
+  @jsonFactoryKey()
+  final String a = 'a';
+  @jsonFactoryKey()
+  final String b = 'b';
 }
 ''', 'more than one @jsonFactoryKey'));
 
@@ -401,7 +569,7 @@ class Bad {
   factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
   Bad._();
   @jsonFactoryKey(mixin: 'not valid')
-  String get k => 'bad';
+  final String k = 'bad';
 }
 ''', 'not a valid public'));
 
@@ -411,7 +579,7 @@ class Bad {
   factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
   Bad._();
   @jsonFactoryKey(oldKeys: [''])
-  String get k => 'bad';
+  final String k = 'bad';
 }
 ''', 'must be non-empty strings'));
 
@@ -421,7 +589,7 @@ class Bad {
   factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
   Bad._();
   @jsonFactoryKey(oldKeys: ['bad'])
-  String get k => 'bad';
+  final String k = 'bad';
 }
 ''', "'bad' is both the key and an old key of `Bad`"));
 
@@ -431,7 +599,7 @@ class Bad {
   factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
   Bad._();
   @jsonFactoryKey(oldKeys: ['old', 'old'])
-  String get k => 'bad';
+  final String k = 'bad';
 }
 ''', "lists 'old' twice"));
   });
@@ -441,7 +609,7 @@ class Bad {
     final result = await _build(
       {
         'a|lib/user.dart':
-            _model('User', "@jsonFactoryKey() String get k => 'user';"),
+            _model('User', "@jsonFactoryKey() final String k = 'user';"),
       },
       aggregator: JsonFactoryAggregator.fromOptions(
         const BuilderOptions({'output': output}),
@@ -449,7 +617,7 @@ class Bad {
     );
     expect(result.succeeded, isTrue, reason: _errors(result));
     expect(result.outputs, isNot(contains(_outputId)));
-    expect(_generated(result, output), contains('mixin JsonFactoryMapper {'));
+    expect(_generated(result, output), contains('mixin JsonFactoryMixin {'));
   });
 
   test('options are validated', () {

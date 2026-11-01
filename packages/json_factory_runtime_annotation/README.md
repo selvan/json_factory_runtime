@@ -2,20 +2,20 @@
 
 The `@jsonFactoryKey()` annotation for [`json_factory_runtime_generator`](https://pub.dev/packages/json_factory_runtime_generator).
 
-Put it on a getter of a `@JsonSerializable` class. The generator then registers the class in a mixin that can rebuild it from JSON at runtime, using a key stored in the JSON itself.
+Put it on a `final String` or enum field of a `@JsonSerializable` class. The generator then registers the class in a mixin that can rebuild it from JSON at runtime, using a key stored in the JSON itself.
 
 ```dart
 @JsonSerializable()
 class User {
-  @jsonFactoryKey()                       // default mixin: JsonFactoryMapper
-  String get factoryKey => 'user';
+  @jsonFactoryKey()                       // default mixin: JsonFactoryMixin
+  final String factoryKey = 'user';
   ...
 }
 
 @JsonSerializable()
 class Order {
-  @jsonFactoryKey(mixin: 'ApiMapper')     // named mixin
-  String get factoryKey => 'order';
+  @jsonFactoryKey(mixin: 'ApiMixin')      // named mixin
+  final String factoryKey = 'order';
   ...
 }
 ```
@@ -24,7 +24,7 @@ To rename a key without breaking JSON written with the old one, add the optional
 
 ```dart
 @jsonFactoryKey(oldKeys: ['person'])
-String get factoryKey => 'member';
+final String factoryKey = 'member';
 ```
 
 `jsonFactoryKey` extends `JsonKey`, so `json_serializable` writes the key into `toJson()` (`"__type__": "user"`) and `fromJson` ignores it.

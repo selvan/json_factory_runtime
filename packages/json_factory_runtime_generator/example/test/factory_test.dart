@@ -1,5 +1,6 @@
 import 'package:example/factories.dart';
 import 'package:example/models/address.dart';
+import 'package:example/models/event.dart';
 import 'package:example/models/order.dart';
 import 'package:example/models/user.dart';
 import 'package:test/test.dart';
@@ -15,6 +16,7 @@ void main() {
       'name': 'Ada',
       keyField: 'user',
     });
+    expect(JsonFactoryMixin.keyField, keyField);
     expect(JsonFactoryMapper.keyField, keyField);
   });
 
@@ -65,6 +67,31 @@ void main() {
   test('named mixin has its own keys', () {
     expect(api.fromJsonByKey('user', {'login': 'ada'}), isA<ApiUser>());
     expect(api.hasMapperKey('address'), isFalse);
+  });
+
+  test('generated mapper classes work like the mixed-in classes', () {
+    final json = const User(id: '1', name: 'Ada').toJson();
+    expect(
+      JsonFactoryMapper.fromKeyedJsonAs<User>(json).name,
+      'Ada',
+    );
+    expect(
+      ApiMapper.fromJsonByKey('user', {'login': 'ada'}),
+      isA<ApiUser>(),
+    );
+  });
+
+  test('a final field key is written and decodes', () {
+    final json = const ApiUser(login: 'ada').toJson();
+    expect(json, {'login': 'ada', keyField: 'user'});
+    expect(ApiMapper.fromKeyedJson(json), isA<ApiUser>());
+  });
+
+  test('an enum @JsonValue key is written and decodes', () {
+    final json = const ApiEvent(name: 'launch').toJson();
+    expect(json, {'name': 'launch', keyField: 'api_event'});
+    expect(ApiMapper.fromKeyedJsonAs<ApiEvent>(json).name, 'launch');
+    expect(ApiMapper.hasMapperKey('api_event'), isTrue);
   });
 
   test('missing or unknown key throws', () {

@@ -13,8 +13,8 @@ class Order {
 
   const Order({required this.id, required this.total, this.customer});
 
-  @jsonFactoryKey(mixin: 'ApiMapper')
-  String get factoryKey => 'order';
+  @jsonFactoryKey(mixin: 'ApiMixin')
+  final String factoryKey = 'order';
 
   factory Order.fromJson(Map<String, dynamic> json) => _$OrderFromJson(json);
   Map<String, dynamic> toJson() => _$OrderToJson(this);
@@ -27,8 +27,8 @@ class ApiUser {
 
   const ApiUser({required this.login});
 
-  @jsonFactoryKey(mixin: 'ApiMapper')
-  String get factoryKey => 'user';
+  @jsonFactoryKey(mixin: 'ApiMixin')
+  final String factoryKey = 'user';
 
   factory ApiUser.fromJson(Map<String, dynamic> json) =>
       _$ApiUserFromJson(json);

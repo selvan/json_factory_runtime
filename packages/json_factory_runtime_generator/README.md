@@ -16,14 +16,14 @@ dart pub add dev:json_factory_runtime_generator dev:json_serializable dev:build_
 
 ## Usage
 
-Add a getter that returns the class's key, and annotate it with `@jsonFactoryKey()`. Parentheses are required, since it is a constructor call:
+Add a `final String` field holding the class's key, and annotate it with `@jsonFactoryKey()`. Parentheses are required, since it is a constructor call:
 
 ```dart
 @JsonSerializable()
 class User {
   ...
-  @jsonFactoryKey()                       // default mixin: JsonFactoryMapper
-  String get factoryKey => 'user';
+  @jsonFactoryKey()                       // default mixin: JsonFactoryMixin
+  final String factoryKey = 'user';
 
   factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
   Map<String, dynamic> toJson() => _$UserToJson(this);
@@ -32,8 +32,8 @@ class User {
 @JsonSerializable()
 class Order {
   ...
-  @jsonFactoryKey(mixin: 'ApiMapper')     // named mixin
-  String get factoryKey => 'order';
+  @jsonFactoryKey(mixin: 'ApiMixin')      // named mixin
+  final String factoryKey = 'order';
 }
 ```
 
@@ -45,13 +45,33 @@ class Order {
 
 The key is written for nested objects and lists as well.
 
+### Using an enum for the key
+
+The field can also be an enum. The key is the constant's `@JsonValue`, which is what `json_serializable` writes into `toJson()`:
+
+```dart
+enum Kind {
+  @JsonValue('user')
+  user,
+}
+
+@JsonSerializable()
+class User {
+  ...
+  @jsonFactoryKey()
+  final Kind factoryKey = Kind.user;
+}
+```
+
+The `@JsonValue` has to be a non-empty string. A constant without one stops the build.
+
 ### Renaming a key
 
 To rename a key without breaking JSON that was already stored or sent with the old one, list the previous keys in `oldKeys`. It is optional; leave it out when a class has never been renamed.
 
 ```dart
 @jsonFactoryKey(oldKeys: ['user', 'person'])
-String get factoryKey => 'member';
+final String factoryKey = 'member';
 ```
 
 `toJson()` now writes `"__type__": "member"`, and the generated mixin still decodes `"user"` and `"person"` to the same class.
@@ -60,28 +80,27 @@ String get factoryKey => 'member';
 dart run build_runner build
 ```
 
-This writes `lib/generated/json_factory_runtime.g.dart` with one mixin per mixin name. For the models above, that is `JsonFactoryMapper` (holding `User`) and `ApiMapper` (holding `Order`).
+This writes `lib/generated/json_factory_runtime.g.dart` with, for each mixin name, the mixin and a static mapper class. For the models above, that is `JsonFactoryMixin` with `JsonFactoryMapper` (holding `User`), and `ApiMixin` with `ApiMapper` (holding `Order`).
 
-## Using the generated mixins
+The mapper's name is the mixin's with a trailing `Mixin` replaced by `Mapper` (`ApiMixin` → `ApiMapper`). Other names get `Mapper` appended (`Api` → `ApiMapper`). The build stops if a mapper name equals another mixin's name, or if two mixins end up with the same mapper.
 
-A mixin can't be instantiated, so mix it into a class of your own. That can be an empty class:
+## Using the generated code
+
+Call the mapper class directly:
 
 ```dart
 import 'generated/json_factory_runtime.g.dart';
 
-class ModelFactory with JsonFactoryMapper {
-  const ModelFactory();
-}
-
-class ApiFactory with ApiMapper {
-  const ApiFactory();
-}
+final user = JsonFactoryMapper.fromKeyedJsonAs<User>(json);
+final order = ApiMapper.fromKeyedJsonAs<Order>(json);
 ```
 
-It can also be a class that already exists, such as a repository or an API client, which then gets the methods directly:
+For code that takes the mixin as an object, `JsonFactoryMapper.instance` is a `const JsonFactoryMixin`.
+
+To get the methods on a class of your own, such as a repository or an API client, mix the mixin in:
 
 ```dart
-class UserRepository with JsonFactoryMapper {
+class UserRepository with JsonFactoryMixin {
   Future<Object> load(String id) async => fromKeyedJson(await _fetch(id));
 
   Future<Map<String, dynamic>> _fetch(String id) async => ...;
@@ -89,6 +108,8 @@ class UserRepository with JsonFactoryMapper {
 ```
 
 ### Methods
+
+All of these are static on the mapper class and instance members of the mixin, except `keyField`, which is static on both.
 
 | Member | Returns | Use when |
 |---|---|---|
@@ -98,19 +119,17 @@ class UserRepository with JsonFactoryMapper {
 | `fromJsonAs<T>(key, json)` | `T` | Same, typed. |
 | `hasMapperKey(key)` | `bool` | Checking a key before decoding. Old keys count. |
 | `mapperKeys` | `Iterable<String>` | Listing the current keys in the mixin. Old keys aren't listed. |
-| `keyField` (static) | `String` | Reading the JSON field name, for example `JsonFactoryMapper.keyField`. |
+| `keyField` | `String` | Reading the JSON field name, for example `JsonFactoryMapper.keyField`. |
 
-`keyField` is static, so read it through the mixin (`JsonFactoryMapper.keyField`), not through your class (`ModelFactory.keyField` doesn't compile).
+Classes that mix in the mixin don't inherit `keyField`, so read it through the mapper or the mixin (`JsonFactoryMapper.keyField`, `JsonFactoryMixin.keyField`), not through your class (`UserRepository.keyField` doesn't compile).
 
 ### Decoding a value whose type isn't known in advance
 
 ```dart
-const factory = ModelFactory();
-
 final json = jsonDecode(body) as Map<String, dynamic>;
 // {"id": "1", "name": "Ada", "__type__": "user"}
 
-switch (factory.fromKeyedJson(json)) {
+switch (JsonFactoryMapper.fromKeyedJson(json)) {
   case User user:
     print('user ${user.name}');
   case Address address:
@@ -127,7 +146,7 @@ Each item carries its own key, so one call per item rebuilds the right class:
 ```dart
 final items = (jsonDecode(body) as List)
     .cast<Map<String, dynamic>>()
-    .map(factory.fromKeyedJson)
+    .map(JsonFactoryMapper.fromKeyedJson)
     .toList();
 // [User(...), Address(...), User(...)]
 ```
@@ -138,7 +157,7 @@ final items = (jsonDecode(body) as List)
 
 ```dart
 final json = const User(id: '1', name: 'Ada').toJson();
-final copy = factory.fromKeyedJsonAs<User>(json);
+final copy = JsonFactoryMapper.fromKeyedJsonAs<User>(json);
 ```
 
 The same applies to stored data, such as a cache or a local database, as long as it was written with `toJson()`.
@@ -148,7 +167,7 @@ The same applies to stored data, such as a cache or a local database, as long as
 When the JSON has no key field, for example because it comes from an endpoint that always returns one type, pass the key yourself:
 
 ```dart
-final user = factory.fromJsonAs<User>('user', json);
+final user = JsonFactoryMapper.fromJsonAs<User>('user', json);
 ```
 
 ### Errors
@@ -162,8 +181,8 @@ Use `hasMapperKey` to check first when the input isn't trusted:
 
 ```dart
 final key = json[JsonFactoryMapper.keyField];
-if (key is String && factory.hasMapperKey(key)) {
-  return factory.fromJsonByKey(key, json);
+if (key is String && JsonFactoryMapper.hasMapperKey(key)) {
+  return JsonFactoryMapper.fromJsonByKey(key, json);
 }
 return null;
 ```
@@ -175,9 +194,9 @@ return null;
 Each mixin only knows its own classes. The same key can mean different classes in different mixins:
 
 ```dart
-const ModelFactory().fromJsonByKey('user', json); // User
-const ApiFactory().fromJsonByKey('user', json);   // ApiUser
-const ApiFactory().hasMapperKey('address');       // false
+JsonFactoryMapper.fromJsonByKey('user', json); // User
+ApiMapper.fromJsonByKey('user', json);         // ApiUser
+ApiMapper.hasMapperKey('address');             // false
 ```
 
 ## Configuration (`build.yaml` next to your `pubspec.yaml`)
@@ -197,16 +216,16 @@ targets:
 
   ```dart
   const typeKey = jsonFactoryKey(name: 'kind');
-  const apiTypeKey = jsonFactoryKey(name: 'kind', mixin: 'ApiMapper');
+  const apiTypeKey = jsonFactoryKey(name: 'kind', mixin: 'ApiMixin');
 
   @typeKey
-  String get factoryKey => 'user';
+  final String factoryKey = 'user';
   ```
 
 ## Rules
 - A key must be unique within a mixin. If two classes share one, the build stops and the error names both classes. The same key can be used in different mixins.
 - Old keys count as keys: within a mixin, each old key must differ from every class's current key and every other old key, or the build stops and the error marks which side is the old key. An old key also can't be empty, repeat in the list, or equal its own class's current key.
-- The annotated getter has to be an instance getter that returns a string literal: `=> 'user'` or `{ return 'user'; }`. Each class can have only one.
+- The annotated member has to be a final, non-`late` instance field, either a `String` initialized with a string literal (`final String factoryKey = 'user';`) or an enum initialized with a constant that has a string `@JsonValue` (`final Kind factoryKey = Kind.user;`). Getters, static fields and values set by a constructor stop the build. Each class can have only one.
 - The class must be annotated with `@JsonSerializable`; otherwise the build stops, because the key would never be written to its JSON.
 - The class has to be public, non-generic and under `lib/`. It also needs a `fromJson(Map<String, dynamic>)` factory or static method.
 - Every generated mixin has the same member names, so a class should mix in only one of them.

@@ -6,7 +6,7 @@ import 'package:build/build.dart';
 import 'src/aggregator.dart';
 import 'src/collector.dart';
 
-/// Per-library builder: records every class with a `@jsonFactoryKey` getter in a
+/// Per-library builder: records every class with a `@jsonFactoryKey` field in a
 /// `.json_factory.json` file in the build cache.
 Builder jsonFactoryCollector(BuilderOptions options) => JsonFactoryCollector();
 
