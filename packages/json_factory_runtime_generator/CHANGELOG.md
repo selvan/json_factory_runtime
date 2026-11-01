@@ -1,3 +1,14 @@
+## 0.3.0
+
+- `@JsonFactoryKey('key')` registers a class with no key field. Its `toJson()`
+  doesn't write the key, so use `toJsonForFactory`.
+- Each mixin and mapper gets `toJsonForFactory(object)`, which adds the key for
+  the exact type of `object`. It works for classes using either annotation.
+- The aggregator now runs before `json_serializable`, so
+  `@JsonKey(toJson: JsonFactoryMapper.toJsonForFactory)` can resolve the mapper.
+- The generated file also imports the registered classes' own libraries.
+- Requires `json_factory_runtime_annotation` 0.3.0.
+
 ## 0.2.0
 
 - **Breaking:** the default mixin is now `JsonFactoryMixin` (was
@@ -13,6 +24,8 @@
   `final String factoryKey = 'user';`. Getters now stop the build.
 - `@jsonFactoryKey` is also accepted on a final enum field initialized with a
   constant that has a string `@JsonValue`.
+- The build stops when a concrete `@JsonSerializable` subclass of a registered
+  class has no `@jsonFactoryKey` field of its own.
 - A class with a `@jsonFactoryKey` field but no `fromJson` of its own uses the
   nearest superclass's `fromJson`.
 - Works with `build` 4.0.11+ and `source_gen` 4.2.4+ as well, for projects that

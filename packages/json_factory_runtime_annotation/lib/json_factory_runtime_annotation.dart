@@ -67,3 +67,44 @@ class jsonFactoryKey extends JsonKey {
   /// Mixin name used when [mixin] is not given.
   static const String defaultMixin = 'JsonFactoryMixin';
 }
+
+/// Registers the annotated class in a generated JSON factory mixin, with no
+/// field on the class.
+///
+/// `toJson` doesn't write the key. Call the generated `toJsonForFactory`
+/// instead, which adds it under [name]. Decoding works as with
+/// [jsonFactoryKey].
+///
+/// ```dart
+/// @JsonFactoryKey('user')
+/// @JsonSerializable()
+/// class User {
+///   ...
+/// }
+///
+/// final json = JsonFactoryMapper.toJsonForFactory(user);
+/// final copy = JsonFactoryMapper.fromKeyedJsonAs<User>(json);
+/// ```
+///
+/// A nested object's `toJson` doesn't write its key either. To include it, add
+/// `@JsonKey(toJson: JsonFactoryMapper.toJsonForFactory)` to the nested field.
+class JsonFactoryKey {
+  /// The key this class is registered under.
+  final String key;
+
+  /// JSON field that carries the key. See [jsonFactoryKey].
+  final String name;
+
+  /// See [jsonFactoryKey.mixin].
+  final String? mixin;
+
+  /// See [jsonFactoryKey.oldKeys].
+  final List<String> oldKeys;
+
+  const JsonFactoryKey(
+    this.key, {
+    this.name = defaultJsonFactoryKeyField,
+    this.mixin,
+    this.oldKeys = const [],
+  });
+}

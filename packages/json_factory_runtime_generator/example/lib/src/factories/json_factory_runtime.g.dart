@@ -4,9 +4,10 @@
 // ignore_for_file: type=lint
 
 import 'package:example/models/address.dart' as i0;
-import 'package:example/models/event.dart' as i1;
-import 'package:example/models/order.dart' as i2;
-import 'package:example/models/user.dart' as i3;
+import 'package:example/models/command.dart' as i1;
+import 'package:example/models/event.dart' as i2;
+import 'package:example/models/order.dart' as i3;
+import 'package:example/models/user.dart' as i4;
 
 /// JSON factory for classes registered with `@jsonFactoryKey(mixin: 'ApiMixin')`.
 mixin ApiMixin {
@@ -15,12 +16,39 @@ mixin ApiMixin {
 
   static const Map<String, Object Function(Map<String, dynamic>)> _$factories =
       {
-        'api_event': i1.ApiEvent.fromJson,
-        'order': i2.Order.fromJson,
-        'user': i2.ApiUser.fromJson,
+        'admin': i3.ApiAdmin.fromJson,
+        'api_event': i2.ApiEvent.fromJson,
+        'order': i3.Order.fromJson,
+        'user': i3.ApiUser.fromJson,
       };
 
-  static const List<String> _$keys = ['api_event', 'order', 'user'];
+  static const List<String> _$keys = ['admin', 'api_event', 'order', 'user'];
+
+  static const Map<Type, String> _$keysByType = {
+    i3.ApiAdmin: 'admin',
+    i2.ApiEvent: 'api_event',
+    i3.Order: 'order',
+    i3.ApiUser: 'user',
+  };
+
+  /// The `toJson` of [object] with its key added under [keyField].
+  ///
+  /// Looks up the exact type of [object]. Throws [ArgumentError] if no class
+  /// is registered for it.
+  Map<String, dynamic> toJsonForFactory(Object object) {
+    final key = _$keysByType[object.runtimeType];
+    if (key == null) {
+      throw ArgumentError.value(
+        object,
+        'object',
+        'No class registered in ApiMixin',
+      );
+    }
+    return {
+      ...(object as dynamic).toJson() as Map<String, dynamic>,
+      keyField: key,
+    };
+  }
 
   /// Builds the class registered under [key] from [json].
   ///
@@ -72,6 +100,10 @@ abstract final class ApiMapper {
   /// See [ApiMixin.keyField].
   static const String keyField = ApiMixin.keyField;
 
+  /// See [ApiMixin.toJsonForFactory].
+  static Map<String, dynamic> toJsonForFactory(Object object) =>
+      instance.toJsonForFactory(object);
+
   /// See [ApiMixin.fromJsonByKey].
   static Object fromJsonByKey(String key, Map<String, dynamic> json) =>
       instance.fromJsonByKey(key, json);
@@ -99,6 +131,126 @@ final class _$ApiMixin with ApiMixin {
   const _$ApiMixin();
 }
 
+/// JSON factory for classes registered with `@jsonFactoryKey(mixin: 'CommandMixin')`.
+mixin CommandMixin {
+  /// JSON field that holds the runtime key.
+  static const String keyField = '__type__';
+
+  static const Map<String, Object Function(Map<String, dynamic>)> _$factories =
+      {
+        'set_image': i1.SetImage.fromJson,
+        'set_logo': i1.SetLogo.fromJson,
+        'wrap': i1.Wrap.fromJson,
+      };
+
+  static const List<String> _$keys = ['set_image', 'set_logo', 'wrap'];
+
+  static const Map<Type, String> _$keysByType = {
+    i1.SetImage: 'set_image',
+    i1.SetLogo: 'set_logo',
+    i1.Wrap: 'wrap',
+  };
+
+  /// The `toJson` of [object] with its key added under [keyField].
+  ///
+  /// Looks up the exact type of [object]. Throws [ArgumentError] if no class
+  /// is registered for it.
+  Map<String, dynamic> toJsonForFactory(Object object) {
+    final key = _$keysByType[object.runtimeType];
+    if (key == null) {
+      throw ArgumentError.value(
+        object,
+        'object',
+        'No class registered in CommandMixin',
+      );
+    }
+    return {
+      ...(object as dynamic).toJson() as Map<String, dynamic>,
+      keyField: key,
+    };
+  }
+
+  /// Builds the class registered under [key] from [json].
+  ///
+  /// Throws [ArgumentError] if no class is registered under [key].
+  Object fromJsonByKey(String key, Map<String, dynamic> json) {
+    final factory = _$factories[key];
+    if (factory == null) {
+      throw ArgumentError.value(
+        key,
+        'key',
+        'No @jsonFactoryKey class registered in CommandMixin',
+      );
+    }
+    return factory(json);
+  }
+
+  /// Typed variant of [fromJsonByKey].
+  T fromJsonAs<T>(String key, Map<String, dynamic> json) =>
+      fromJsonByKey(key, json) as T;
+
+  /// Builds the class named by the [keyField] entry of [json].
+  ///
+  /// Throws [ArgumentError] if [json] has no string [keyField] or no class is registered under it.
+  Object fromKeyedJson(Map<String, dynamic> json) {
+    final key = json[keyField];
+    if (key is! String) {
+      throw ArgumentError.value(json, 'json', 'Missing string $keyField');
+    }
+    return fromJsonByKey(key, json);
+  }
+
+  /// Typed variant of [fromKeyedJson].
+  T fromKeyedJsonAs<T>(Map<String, dynamic> json) => fromKeyedJson(json) as T;
+
+  /// Whether a class is registered under [key], current or old.
+  bool hasMapperKey(String key) => _$factories.containsKey(key);
+
+  /// All current keys.
+  ///
+  /// Old keys are accepted by [hasMapperKey] and the `from*` methods but not listed.
+  Iterable<String> get mapperKeys => _$keys;
+}
+
+/// Static access to [CommandMixin], for example `CommandMapper.fromKeyedJson(json)`.
+abstract final class CommandMapper {
+  /// [CommandMixin] as an object, for code that takes one.
+  static const CommandMixin instance = _$CommandMixin();
+
+  /// See [CommandMixin.keyField].
+  static const String keyField = CommandMixin.keyField;
+
+  /// See [CommandMixin.toJsonForFactory].
+  static Map<String, dynamic> toJsonForFactory(Object object) =>
+      instance.toJsonForFactory(object);
+
+  /// See [CommandMixin.fromJsonByKey].
+  static Object fromJsonByKey(String key, Map<String, dynamic> json) =>
+      instance.fromJsonByKey(key, json);
+
+  /// See [CommandMixin.fromJsonAs].
+  static T fromJsonAs<T>(String key, Map<String, dynamic> json) =>
+      instance.fromJsonAs<T>(key, json);
+
+  /// See [CommandMixin.fromKeyedJson].
+  static Object fromKeyedJson(Map<String, dynamic> json) =>
+      instance.fromKeyedJson(json);
+
+  /// See [CommandMixin.fromKeyedJsonAs].
+  static T fromKeyedJsonAs<T>(Map<String, dynamic> json) =>
+      instance.fromKeyedJsonAs<T>(json);
+
+  /// See [CommandMixin.hasMapperKey].
+  static bool hasMapperKey(String key) => instance.hasMapperKey(key);
+
+  /// See [CommandMixin.mapperKeys].
+  static Iterable<String> get mapperKeys => instance.mapperKeys;
+}
+
+final class _$CommandMixin with CommandMixin {
+  const _$CommandMixin();
+}
+
 /// JSON factory for classes registered with `@jsonFactoryKey(mixin: 'JsonFactoryMixin')`.
 mixin JsonFactoryMixin {
   /// JSON field that holds the runtime key.
@@ -108,10 +260,34 @@ mixin JsonFactoryMixin {
       {
         'address': i0.Address.fromJson,
         'location': i0.Address.fromJson, // old key of Address
-        'user': i3.User.fromJson,
+        'user': i4.User.fromJson,
       };
 
   static const List<String> _$keys = ['address', 'user'];
+
+  static const Map<Type, String> _$keysByType = {
+    i0.Address: 'address',
+    i4.User: 'user',
+  };
+
+  /// The `toJson` of [object] with its key added under [keyField].
+  ///
+  /// Looks up the exact type of [object]. Throws [ArgumentError] if no class
+  /// is registered for it.
+  Map<String, dynamic> toJsonForFactory(Object object) {
+    final key = _$keysByType[object.runtimeType];
+    if (key == null) {
+      throw ArgumentError.value(
+        object,
+        'object',
+        'No class registered in JsonFactoryMixin',
+      );
+    }
+    return {
+      ...(object as dynamic).toJson() as Map<String, dynamic>,
+      keyField: key,
+    };
+  }
 
   /// Builds the class registered under [key] from [json].
   ///
@@ -162,6 +338,10 @@ abstract final class JsonFactoryMapper {
 
   /// See [JsonFactoryMixin.keyField].
   static const String keyField = JsonFactoryMixin.keyField;
+
+  /// See [JsonFactoryMixin.toJsonForFactory].
+  static Map<String, dynamic> toJsonForFactory(Object object) =>
+      instance.toJsonForFactory(object);
 
   /// See [JsonFactoryMixin.fromJsonByKey].
   static Object fromJsonByKey(String key, Map<String, dynamic> json) =>

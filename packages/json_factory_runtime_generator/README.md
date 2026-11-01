@@ -76,6 +76,36 @@ final String factoryKey = 'member';
 
 `toJson()` now writes `"__type__": "member"`, and the generated mixin still decodes `"user"` and `"person"` to the same class.
 
+### Annotating the class instead
+
+To keep the key out of the class's fields and its `toJson()`, put `@JsonFactoryKey` on the class. The key can be any constant string, and `name`, `mixin` and `oldKeys` work the same way:
+
+```dart
+@JsonFactoryKey('user')
+@JsonSerializable()
+class User {
+  ...
+  factory User.fromJson(Map<String, dynamic> json) => _$UserFromJson(json);
+  Map<String, dynamic> toJson() => _$UserToJson(this);
+}
+```
+
+`toJson()` doesn't write the key, so use the generated `toJsonForFactory` for JSON that will be decoded through the factory:
+
+```dart
+user.toJson();                               // {"id": "1", "name": "Ada"}
+JsonFactoryMapper.toJsonForFactory(user);    // {"id": "1", "name": "Ada", "__type__": "user"}
+```
+
+**JSON without the key can't be decoded through the factory, and the failure only shows up at runtime.** That applies to a direct `toJson()` call and to nested objects, because a parent's generated `toJson()` calls the child's. To include the key for a nested field, add:
+
+```dart
+@JsonKey(toJson: JsonFactoryMapper.toJsonForFactory)
+final User customer;
+```
+
+The parameter of `toJsonForFactory` is non-nullable, so this form doesn't suit a nullable field. If `toJson()` itself needs to include the key, for example for nested lists, use `@jsonFactoryKey()` on a field instead. Both forms can be used in the same package.
+
 ```bash
 dart run build_runner build
 ```
@@ -113,6 +143,7 @@ All of these are static on the mapper class and instance members of the mixin, e
 
 | Member | Returns | Use when |
 |---|---|---|
+| `toJsonForFactory(object)` | `Map<String, dynamic>` | Writing `object.toJson()` with its key added. Throws `ArgumentError` if the exact type of `object` isn't registered. |
 | `fromKeyedJson(json)` | `Object` | The key is in the JSON (`json['__type__']`). |
 | `fromKeyedJsonAs<T>(json)` | `T` | Same, and you know the type you expect. |
 | `fromJsonByKey(key, json)` | `Object` | The key comes from somewhere else, such as a URL or a header. |
@@ -225,8 +256,10 @@ targets:
 ## Rules
 - A key must be unique within a mixin. If two classes share one, the build stops and the error names both classes. The same key can be used in different mixins.
 - Old keys count as keys: within a mixin, each old key must differ from every class's current key and every other old key, or the build stops and the error marks which side is the old key. An old key also can't be empty, repeat in the list, or equal its own class's current key.
-- The annotated member has to be a final, non-`late` instance field, either a `String` initialized with a string literal (`final String factoryKey = 'user';`) or an enum initialized with a constant that has a string `@JsonValue` (`final Kind factoryKey = Kind.user;`). Getters, static fields and values set by a constructor stop the build. Each class can have only one.
-- The class must be annotated with `@JsonSerializable`; otherwise the build stops, because the key would never be written to its JSON.
+- A class can use `@JsonFactoryKey` or a `@jsonFactoryKey` field, not both. `@JsonFactoryKey` needs a non-empty key and a `toJson()` on the class or a superclass, but not `@JsonSerializable`. A concrete `@JsonSerializable` subclass of a class with `@JsonFactoryKey` needs its own `@JsonFactoryKey`, or the build stops.
+- A `@jsonFactoryKey` member has to be a final, non-`late` instance field, either a `String` initialized with a string literal (`final String factoryKey = 'user';`) or an enum initialized with a constant that has a string `@JsonValue` (`final Kind factoryKey = Kind.user;`). Getters, static fields and values set by a constructor stop the build. Each class can have only one.
+- A concrete `@JsonSerializable` subclass of a registered class must annotate its own key field (with `@override` if it has the parent's name), or the build stops. Otherwise its JSON wouldn't decode back to the subclass. Give it its own `fromJson` too, unless the parent's `fromJson` picks the subclass itself. The override triggers the `overridden_fields` lint if you have it enabled; add `// ignore: overridden_fields` on the line directly above `final String`.
+- A class with a `@jsonFactoryKey` field must be annotated with `@JsonSerializable`; otherwise the build stops, because the key would never be written to its JSON.
 - The class has to be public, non-generic and under `lib/`. It also needs a `fromJson(Map<String, dynamic>)` factory or static method.
 - Every generated mixin has the same member names, so a class should mix in only one of them.
 

@@ -189,7 +189,7 @@ String generate(
 }) {
   final uris = {
     for (final keys in byMixin.values)
-      for (final r in keys.values) r.entry.fromJsonUri,
+      for (final r in keys.values) ...[r.entry.fromJsonUri, r.entry.importUri],
   }.toList()
     ..sort();
   final prefix = {for (var i = 0; i < uris.length; i++) uris[i]: 'i$i'};
@@ -238,6 +238,33 @@ String generate(
       ..writeln('  static const List<String> _\$keys = [')
       ..writeln([for (final k in currentKeys) '    ${_literal(k)},'].join('\n'))
       ..writeln('  ];')
+      ..writeln()
+      ..writeln('  static const Map<Type, String> _\$keysByType = {');
+    for (final key in currentKeys) {
+      final e = keys[key]!.entry;
+      out.writeln(
+          '    ${prefix[e.importUri]}.${e.className}: ${_literal(key)},');
+    }
+    out
+      ..writeln('  };')
+      ..writeln()
+      ..writeln('  /// The `toJson` of [object] with its key added under '
+          '[keyField].')
+      ..writeln('  ///')
+      ..writeln('  /// Looks up the exact type of [object]. Throws '
+          '[ArgumentError] if no class')
+      ..writeln('  /// is registered for it.')
+      ..writeln('  Map<String, dynamic> toJsonForFactory(Object object) {')
+      ..writeln('    final key = _\$keysByType[object.runtimeType];')
+      ..writeln('    if (key == null) {')
+      ..writeln(
+          "      throw ArgumentError.value(object, 'object', 'No class registered in $mixin');")
+      ..writeln('    }')
+      ..writeln('    return {')
+      ..writeln('      ...(object as dynamic).toJson() as Map<String, dynamic>,')
+      ..writeln('      keyField: key,')
+      ..writeln('    };')
+      ..writeln('  }')
       ..writeln()
       ..writeln('  /// Builds the class registered under [key] from [json].')
       ..writeln('  ///')
@@ -300,6 +327,10 @@ String generate(
       ..writeln()
       ..writeln('  /// See [$mixin.keyField].')
       ..writeln('  static const String keyField = $mixin.keyField;')
+      ..writeln()
+      ..writeln('  /// See [$mixin.toJsonForFactory].')
+      ..writeln('  static Map<String, dynamic> toJsonForFactory(Object object) =>')
+      ..writeln('      instance.toJsonForFactory(object);')
       ..writeln()
       ..writeln('  /// See [$mixin.fromJsonByKey].')
       ..writeln(

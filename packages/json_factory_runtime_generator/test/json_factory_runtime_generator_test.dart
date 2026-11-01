@@ -150,6 +150,96 @@ class Item {
     expect(code, contains("'thing': i0.Item.fromJson"));
   });
 
+  group('subclass of a registered class', () {
+    const parent = '''
+$_imports
+@JsonSerializable()
+class Parent {
+  Parent();
+  factory Parent.fromJson(Map<String, dynamic> json) => Parent();
+  @jsonFactoryKey()
+  final String factoryKey = 'parent';
+}
+''';
+
+    Future<TestBuilderResult> buildChild(String child) => _build({
+          'a|lib/parent.dart': parent,
+          'a|lib/child.dart': '''
+$_imports
+import 'parent.dart';
+$child
+''',
+        });
+
+    test('registers under its own annotated key', () async {
+      final result = await buildChild('''
+@JsonSerializable()
+class Child extends Parent {
+  Child();
+  factory Child.fromJson(Map<String, dynamic> json) => Child();
+  @jsonFactoryKey()
+  @override
+  final String factoryKey = 'child';
+}
+''');
+      expect(result.succeeded, isTrue, reason: _errors(result));
+      final code = _generated(result);
+      expect(code, contains("'child': i0.Child.fromJson"));
+      expect(code, contains("'parent': i1.Parent.fromJson"));
+    });
+
+    test('stops the build when it does not override', () async {
+      final result = await buildChild('''
+@JsonSerializable()
+class Child extends Parent {
+  Child();
+}
+''');
+      expect(result.succeeded, isFalse);
+      expect(_errors(result), contains('`Child` extends `Parent`'));
+    });
+
+    test('stops the build when it overrides without the annotation', () async {
+      final result = await buildChild('''
+@JsonSerializable()
+class Child extends Parent {
+  Child();
+  @override
+  final String factoryKey = 'child';
+}
+''');
+      expect(result.succeeded, isFalse);
+      expect(_errors(result), contains('`Child` extends `Parent`'));
+    });
+
+    test('stops the build for an indirect subclass', () async {
+      final result = await buildChild('''
+class Middle extends Parent {
+  Middle();
+}
+@JsonSerializable()
+class Child extends Middle {
+  Child();
+}
+''');
+      expect(result.succeeded, isFalse);
+      expect(_errors(result), contains('`Child` extends `Parent`'));
+    });
+
+    test('is allowed when abstract or not @JsonSerializable', () async {
+      final result = await buildChild('''
+@JsonSerializable()
+abstract class Base extends Parent {
+  Base();
+}
+class Plain extends Parent {
+  Plain();
+}
+''');
+      expect(result.succeeded, isTrue, reason: _errors(result));
+    });
+  });
+
   test('reads a final field', () async {
     final result = await _build({
       'a|lib/item.dart': '''
@@ -192,17 +282,18 @@ class Circle extends Shape {
     });
     expect(result.succeeded, isTrue, reason: _errors(result));
     final code = _generated(result);
-    expect(code, contains("import 'package:a/shape.dart' as i0;"));
-    expect(code, isNot(contains('circle.dart')));
+    expect(code, contains("import 'package:a/circle.dart' as i0;"));
+    expect(code, contains("import 'package:a/shape.dart' as i1;"));
     expect(
       code,
-      contains("'circle': i0.Shape.fromJson, // inherited by Circle"),
+      contains("'circle': i1.Shape.fromJson, // inherited by Circle"),
     );
     expect(
       code,
-      contains("'round': i0.Shape.fromJson, "
+      contains("'round': i1.Shape.fromJson, "
           '// old key of Circle, inherited by Circle'),
     );
+    expect(code, contains("i0.Circle: 'circle'"));
   });
 
   test('accepts a user-defined annotation constant', () async {
@@ -404,6 +495,201 @@ class Order {
         contains("User (package:a/user.dart) writes '__type__'"),
       );
     });
+  });
+
+  group('@JsonFactoryKey on a class', () {
+    /// A model with `fromJson` and `toJson`, under the given annotation.
+    String classModel(String className, String annotation) => '''
+$_imports
+$annotation
+@JsonSerializable()
+class $className {
+  $className();
+  factory $className.fromJson(Map<String, dynamic> json) => $className();
+  Map<String, dynamic> toJson() => {};
+}
+''';
+
+    test('registers the class and adds it to toJsonForFactory', () async {
+      final result = await _build({
+        'a|lib/user.dart': classModel('User', "@JsonFactoryKey('user')"),
+      });
+      expect(result.succeeded, isTrue, reason: _errors(result));
+
+      final code = _generated(result);
+      expect(code, contains("import 'package:a/user.dart' as i0;"));
+      expect(code, contains("'user': i0.User.fromJson"));
+      expect(code, contains("i0.User: 'user'"));
+      expect(code, contains('Map<String, dynamic> toJsonForFactory(Object'));
+      expect(code, contains('static Map<String, dynamic> toJsonForFactory('));
+    });
+
+    test('reads mixin and oldKeys', () async {
+      final result = await _build({
+        'a|lib/user.dart': classModel(
+          'User',
+          "@JsonFactoryKey('member', mixin: 'ApiMixin', oldKeys: ['user'])",
+        ),
+      });
+      expect(result.succeeded, isTrue, reason: _errors(result));
+
+      final code = _generated(result);
+      expect(code, contains('mixin ApiMixin {'));
+      expect(code, contains("'user': i0.User.fromJson, // old key of User"));
+      expect(code, contains("i0.User: 'member'"));
+      expect(code, isNot(contains("i0.User: 'user'")));
+    });
+
+    test('accepts a named constant as the key', () async {
+      final result = await _build({
+        'a|lib/user.dart': '''
+$_imports
+const userKey = 'user';
+
+@JsonFactoryKey(userKey)
+class User {
+  User();
+  factory User.fromJson(Map<String, dynamic> json) => User();
+  Map<String, dynamic> toJson() => {};
+}
+''',
+      });
+      expect(result.succeeded, isTrue, reason: _errors(result));
+      expect(_generated(result), contains("i0.User: 'user'"));
+    });
+
+    test('accepts a toJson inherited from a superclass', () async {
+      final result = await _build({
+        'a|lib/user.dart': '''
+$_imports
+abstract class Base {
+  Map<String, dynamic> toJson() => {};
+}
+
+@JsonFactoryKey('user')
+class User extends Base {
+  User();
+  factory User.fromJson(Map<String, dynamic> json) => User();
+}
+''',
+      });
+      expect(result.succeeded, isTrue, reason: _errors(result));
+    });
+
+    test('field-annotated classes are in toJsonForFactory too', () async {
+      final result = await _build({
+        'a|lib/user.dart':
+            _model('User', "@jsonFactoryKey() final String k = 'user';"),
+      });
+      expect(result.succeeded, isTrue, reason: _errors(result));
+      expect(_generated(result), contains("i0.User: 'user'"));
+    });
+
+    test('uses the configured key_field', () async {
+      final result = await _build(
+        {
+          'a|lib/user.dart':
+              classModel('User', "@JsonFactoryKey('user', name: 'kind')"),
+        },
+        aggregator: JsonFactoryAggregator(keyField: 'kind'),
+      );
+      expect(result.succeeded, isTrue, reason: _errors(result));
+      expect(
+        _generated(result),
+        contains("static const String keyField = 'kind';"),
+      );
+    });
+
+    test('a name that differs from key_field stops the build', () async {
+      final result = await _build({
+        'a|lib/user.dart':
+            classModel('User', "@JsonFactoryKey('user', name: 'kind')"),
+      });
+      expect(result.succeeded, isFalse);
+      expect(_errors(result), contains('must match key_field'));
+    });
+
+    test('a key clash with a field-annotated class stops the build', () async {
+      final result = await _build({
+        'a|lib/user.dart': classModel('User', "@JsonFactoryKey('same')"),
+        'a|lib/other.dart':
+            _model('Other', "@jsonFactoryKey() final String k = 'same';"),
+      });
+      expect(result.succeeded, isFalse);
+      expect(_errors(result), contains("key 'same'"));
+    });
+
+    Future<void> expectError(String body, String message) async {
+      final result = await _build({'a|lib/bad.dart': '$_imports\n$body'});
+      expect(result.succeeded, isFalse);
+      expect(_errors(result), contains(message));
+    }
+
+    test('both annotation forms stop the build', () => expectError('''
+@JsonFactoryKey('bad')
+@JsonSerializable()
+class Bad {
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
+  Bad._();
+  Map<String, dynamic> toJson() => {};
+  @jsonFactoryKey()
+  final String k = 'bad';
+}
+''', 'both @JsonFactoryKey and a @jsonFactoryKey field'));
+
+    test('an empty key stops the build', () => expectError('''
+@JsonFactoryKey('')
+class Bad {
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
+  Bad._();
+  Map<String, dynamic> toJson() => {};
+}
+''', 'must not be empty'));
+
+    test('a missing toJson stops the build', () => expectError('''
+@JsonFactoryKey('bad')
+class Bad {
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
+  Bad._();
+}
+''', 'no `toJson()`'));
+
+    test('a missing fromJson stops the build', () => expectError('''
+@JsonFactoryKey('bad')
+class Bad {
+  Map<String, dynamic> toJson() => {};
+}
+''', 'no `fromJson'));
+
+    test('a private class stops the build', () => expectError('''
+@JsonFactoryKey('bad')
+class _Bad {
+  factory _Bad.fromJson(Map<String, dynamic> json) => _Bad._();
+  _Bad._();
+  Map<String, dynamic> toJson() => {};
+}
+''', 'private class'));
+
+    test('a generic class stops the build', () => expectError('''
+@JsonFactoryKey('bad')
+class Bad<T> {
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad._();
+  Bad._();
+  Map<String, dynamic> toJson() => {};
+}
+''', 'generic class'));
+
+    test('a serializable subclass needs its own key', () => expectError('''
+@JsonFactoryKey('base')
+class Base {
+  Base();
+  factory Base.fromJson(Map<String, dynamic> json) => Base();
+  Map<String, dynamic> toJson() => {};
+}
+
+@JsonSerializable()
+class Bad extends Base {}
+''', 'which has @JsonFactoryKey'));
   });
 
   group('invalid usage is an error:', () {

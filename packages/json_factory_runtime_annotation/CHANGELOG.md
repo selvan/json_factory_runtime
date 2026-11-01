@@ -1,3 +1,7 @@
+## 0.3.0
+
+- Add `@JsonFactoryKey('key')`, which goes on the class instead of a field.
+
 ## 0.2.0
 
 - **Breaking:** the default mixin is now `JsonFactoryMixin` (was

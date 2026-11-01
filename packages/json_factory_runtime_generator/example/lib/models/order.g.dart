@@ -28,3 +28,11 @@ Map<String, dynamic> _$ApiUserToJson(ApiUser instance) => <String, dynamic>{
   'login': instance.login,
   '__type__': instance.factoryKey,
 };
+
+ApiAdmin _$ApiAdminFromJson(Map<String, dynamic> json) =>
+    ApiAdmin(login: json['login'] as String);
+
+Map<String, dynamic> _$ApiAdminToJson(ApiAdmin instance) => <String, dynamic>{
+  'login': instance.login,
+  '__type__': instance.factoryKey,
+};

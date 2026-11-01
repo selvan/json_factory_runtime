@@ -1,5 +1,6 @@
 import 'package:example/factories.dart';
 import 'package:example/models/address.dart';
+import 'package:example/models/command.dart';
 import 'package:example/models/event.dart';
 import 'package:example/models/order.dart';
 import 'package:example/models/user.dart';
@@ -92,6 +93,69 @@ void main() {
     expect(json, {'name': 'launch', keyField: 'api_event'});
     expect(ApiMapper.fromKeyedJsonAs<ApiEvent>(json).name, 'launch');
     expect(ApiMapper.hasMapperKey('api_event'), isTrue);
+  });
+
+  test('a subclass decodes under its own key', () {
+    final json = const ApiAdmin(login: 'ada').toJson();
+    expect(json, {'login': 'ada', keyField: 'admin'});
+    expect(ApiMapper.fromKeyedJson(json), isA<ApiAdmin>());
+  });
+
+  group('@JsonFactoryKey on a class', () {
+    test('toJson is plain and toJsonForFactory adds the key', () {
+      const command = SetImage(url: 'a.png');
+      expect(command.toJson(), {'url': 'a.png'});
+      expect(CommandMapper.toJsonForFactory(command), {
+        'url': 'a.png',
+        keyField: 'set_image',
+      });
+    });
+
+    test('toJsonForFactory output decodes back to the class', () {
+      final copy = CommandMapper.fromKeyedJsonAs<SetImage>(
+        CommandMapper.toJsonForFactory(const SetImage(url: 'a.png')),
+      );
+      expect(copy.url, 'a.png');
+    });
+
+    test('a subclass inheriting toJson writes its own key', () {
+      final json = CommandMapper.toJsonForFactory(const SetLogo(url: 'a.png'));
+      expect(json[keyField], 'set_logo');
+      expect(CommandMapper.fromKeyedJson(json), isA<SetLogo>());
+    });
+
+    test('an unregistered type throws', () {
+      expect(
+        () => CommandMapper.toJsonForFactory(const SetDraft(url: 'a.png')),
+        throwsArgumentError,
+      );
+    });
+
+    test('a nested field has a key only if it asks for one', () {
+      final json = CommandMapper.toJsonForFactory(
+        const Wrap(
+          keyed: SetImage(url: 'a.png'),
+          plain: SetImage(url: 'b.png'),
+        ),
+      );
+      expect(json, {
+        'keyed': {'url': 'a.png', keyField: 'set_image'},
+        'plain': {'url': 'b.png'},
+        keyField: 'wrap',
+      });
+
+      final copy = CommandMapper.fromKeyedJsonAs<Wrap>(json);
+      expect(copy.keyed.url, 'a.png');
+      expect(copy.plain.url, 'b.png');
+    });
+
+    test('a field-annotated class works too', () {
+      expect(JsonFactoryMapper.toJsonForFactory(const User(id: '1', name: 'Ada')), {
+        'id': '1',
+        'name': 'Ada',
+        keyField: 'user',
+      });
+    });
   });
 
   test('missing or unknown key throws', () {

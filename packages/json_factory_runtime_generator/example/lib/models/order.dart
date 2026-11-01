@@ -34,3 +34,20 @@ class ApiUser {
       _$ApiUserFromJson(json);
   Map<String, dynamic> toJson() => _$ApiUserToJson(this);
 }
+
+/// A subclass registers under a key of its own, and needs its own `fromJson`.
+@JsonSerializable()
+class ApiAdmin extends ApiUser {
+  const ApiAdmin({required super.login});
+
+  @jsonFactoryKey(mixin: 'ApiMixin')
+  @override
+  // The key has to be a field, so the lint's advice to use a getter can't apply.
+  // ignore: overridden_fields
+  final String factoryKey = 'admin';
+
+  factory ApiAdmin.fromJson(Map<String, dynamic> json) =>
+      _$ApiAdminFromJson(json);
+  @override
+  Map<String, dynamic> toJson() => _$ApiAdminToJson(this);
+}

@@ -14,5 +14,9 @@ builders:
     builder_factories: ["jsonFactoryAggregator"]
     build_extensions: {"$lib$": ["generated/json_factory_runtime.g.dart"]}
     required_inputs: [".json_factory.json"]
+    # So json_serializable can resolve the generated mapper in
+    # `@JsonKey(toJson: JsonFactoryMapper.toJsonForFactory)`. It silently drops
+    # that annotation if the mapper isn't there yet.
+    runs_before: ["json_serializable"]
     auto_apply: dependents
     build_to: source

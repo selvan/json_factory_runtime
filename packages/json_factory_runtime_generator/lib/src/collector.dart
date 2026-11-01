@@ -14,6 +14,11 @@ const _keyChecker = TypeChecker.typeNamed(
   inPackage: 'json_factory_runtime_annotation',
 );
 
+const _classKeyChecker = TypeChecker.typeNamed(
+  JsonFactoryKey,
+  inPackage: 'json_factory_runtime_annotation',
+);
+
 const _jsonSerializableChecker = TypeChecker.typeNamedLiterally(
   'JsonSerializable',
   inPackage: 'json_annotation',
@@ -91,9 +96,24 @@ class JsonFactoryCollector implements Builder {
           if (_keyChecker.firstAnnotationOf(field) case final annotation?)
             (field, ConstantReader(annotation)),
     ];
-    if (annotated.isEmpty) return null;
+    final classAnnotation = _classKeyChecker.firstAnnotationOf(element);
+    if (classAnnotation != null) {
+      if (annotated.isNotEmpty) {
+        throw InvalidGenerationSource(
+          '`${element.name}` has both @JsonFactoryKey and a @jsonFactoryKey '
+          'field.',
+          element: element,
+          todo: 'Remove one of them.',
+        );
+      }
+      return _classEntryFor(element, library, ConstantReader(classAnnotation));
+    }
+    if (annotated.isEmpty) {
+      _checkNoInheritedKey(element);
+      return null;
+    }
 
-    final className = element.name;
+    final className = _registrableName(element);
     if (annotated.length > 1) {
       throw InvalidGenerationSource(
         '`$className` has more than one @jsonFactoryKey field.',
@@ -112,20 +132,6 @@ class JsonFactoryCollector implements Builder {
       );
     }
 
-    if (className == null || element.isPrivate) {
-      throw InvalidGenerationSource(
-        '@jsonFactoryKey cannot be used in private class `$className`: '
-        'the generated factory has to import it.',
-        element: element,
-      );
-    }
-    if (element.typeParameters.isNotEmpty) {
-      throw InvalidGenerationSource(
-        '@jsonFactoryKey cannot be used in generic class `$className`: '
-        'its fromJson needs extra arguments for the type parameters.',
-        element: element,
-      );
-    }
     if (field.isStatic) {
       throw InvalidGenerationSource(
         '@jsonFactoryKey field `$className.${field.name}` must not be '
@@ -153,11 +159,99 @@ class JsonFactoryCollector implements Builder {
     final fromJsonOwner = _checkFromJson(element, className);
 
     final key = await _keyValue(field, className, buildStep);
+    return _entry(
+      element,
+      library,
+      annotation,
+      key: key,
+      className: className,
+      fromJsonOwner: fromJsonOwner,
+      at: field,
+    );
+  }
+
+  /// The registration for a class annotated with `@JsonFactoryKey`.
+  JsonFactoryEntry _classEntryFor(
+    ClassElement element,
+    LibraryElement library,
+    ConstantReader annotation,
+  ) {
+    final className = _registrableName(element);
+    final key = annotation.read('key').stringValue;
+    if (key.isEmpty) {
+      throw InvalidGenerationSource(
+        '@JsonFactoryKey on `$className` must not be empty.',
+        element: element,
+      );
+    }
+    if (!_hasToJson(element)) {
+      throw InvalidGenerationSource(
+        '`$className` has @JsonFactoryKey but no `toJson()` for '
+        '`toJsonForFactory` to call, on itself or a superclass.',
+        element: element,
+        todo: 'Add `Map<String, dynamic> toJson()` to `$className`.',
+      );
+    }
+    return _entry(
+      element,
+      library,
+      annotation,
+      key: key,
+      className: className,
+      fromJsonOwner: _checkFromJson(element, className),
+      at: element,
+    );
+  }
+
+  /// The name of [element], which must be public and not generic.
+  String _registrableName(ClassElement element) {
+    final className = element.name;
+    if (className == null || element.isPrivate) {
+      throw InvalidGenerationSource(
+        '@jsonFactoryKey cannot be used in private class `$className`: '
+        'the generated factory has to import it.',
+        element: element,
+      );
+    }
+    if (element.typeParameters.isNotEmpty) {
+      throw InvalidGenerationSource(
+        '@jsonFactoryKey cannot be used in generic class `$className`: '
+        'its fromJson needs extra arguments for the type parameters.',
+        element: element,
+      );
+    }
+    return className;
+  }
+
+  /// Whether [element] or a supertype has an instance `toJson` callable with
+  /// no arguments.
+  bool _hasToJson(ClassElement element) {
+    for (final type in [element.thisType, ...element.allSupertypes]) {
+      final method = type.element.getMethod('toJson');
+      if (method != null &&
+          !method.isStatic &&
+          !method.formalParameters.any((p) => p.isRequired)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Reads the options both annotations share and builds the registration.
+  JsonFactoryEntry _entry(
+    ClassElement element,
+    LibraryElement library,
+    ConstantReader annotation, {
+    required String key,
+    required String className,
+    required InterfaceElement fromJsonOwner,
+    required Element at,
+  }) {
     final keyField = annotation.read('name').stringValue;
     if (keyField.isEmpty) {
       throw InvalidGenerationSource(
         '@jsonFactoryKey name on `$className` must not be empty.',
-        element: field,
+        element: at,
       );
     }
 
@@ -169,11 +263,11 @@ class JsonFactoryCollector implements Builder {
       throw InvalidGenerationSource(
         '@jsonFactoryKey mixin `$mixin` on `$className` is not a valid public '
         'Dart identifier.',
-        element: field,
+        element: at,
       );
     }
 
-    final oldKeys = _oldKeys(annotation, key, className, field);
+    final oldKeys = _oldKeys(annotation, key, className, at);
 
     final importUri = library.uri;
     if (importUri.scheme != 'package') {
@@ -212,7 +306,7 @@ class JsonFactoryCollector implements Builder {
     ConstantReader annotation,
     String key,
     String className,
-    FieldElement field,
+    Element at,
   ) {
     final oldKeys = <String>[];
     for (final object in annotation.read('oldKeys').listValue) {
@@ -220,25 +314,60 @@ class JsonFactoryCollector implements Builder {
       if (oldKey == null || oldKey.isEmpty) {
         throw InvalidGenerationSource(
           '@jsonFactoryKey oldKeys on `$className` must be non-empty strings.',
-          element: field,
+          element: at,
         );
       }
       if (oldKey == key) {
         throw InvalidGenerationSource(
           "'$oldKey' is both the key and an old key of `$className`.",
-          element: field,
+          element: at,
           todo: "Remove '$oldKey' from oldKeys.",
         );
       }
       if (oldKeys.contains(oldKey)) {
         throw InvalidGenerationSource(
           "@jsonFactoryKey oldKeys on `$className` lists '$oldKey' twice.",
-          element: field,
+          element: at,
         );
       }
       oldKeys.add(oldKey);
     }
     return oldKeys;
+  }
+
+  /// A concrete `@JsonSerializable` subclass of a registered class writes a key
+  /// that doesn't decode back to it, unless it registers a key of its own.
+  void _checkNoInheritedKey(ClassElement element) {
+    if (element.isAbstract ||
+        !_jsonSerializableChecker.hasAnnotationOf(element)) {
+      return;
+    }
+    for (var parent = element.supertype?.element;
+        parent != null;
+        parent = parent.supertype?.element) {
+      if (_classKeyChecker.hasAnnotationOf(parent)) {
+        throw InvalidGenerationSource(
+          '`${element.name}` extends `${parent.name}`, which has '
+          "@JsonFactoryKey, but has none of its own, so its JSON won't decode "
+          'back to `${element.name}`.',
+          element: element,
+          todo: "Add `@JsonFactoryKey('your_key')` and a `fromJson` to "
+              '`${element.name}`.',
+        );
+      }
+      for (final field in parent.fields) {
+        if (field.isOriginDeclaration && _keyChecker.hasAnnotationOf(field)) {
+          throw InvalidGenerationSource(
+            '`${element.name}` extends `${parent.name}`, which has a '
+            '@jsonFactoryKey field, but has none of its own, so its JSON '
+            "won't decode back to `${element.name}`.",
+            element: element,
+            todo: 'Add `@jsonFactoryKey() @override final String ${field.name} '
+                "= 'your_key';` and a `fromJson` to `${element.name}`.",
+          );
+        }
+      }
+    }
   }
 
   /// Reads the key from the initializer of [field]: a plain string literal,
