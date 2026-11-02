@@ -90,6 +90,24 @@ class JsonFactoryCollector implements Builder {
       }
     }
 
+    // Nothing reads @JsonFactoryKey on a member, so the class would silently
+    // go unregistered.
+    for (final member in [
+      ...element.methods,
+      ...element.getters.where((g) => g.isOriginDeclaration),
+      ...element.fields.where((f) => f.isOriginDeclaration),
+    ]) {
+      if (_classKeyChecker.hasAnnotationOf(member)) {
+        throw InvalidGenerationSource(
+          '@JsonFactoryKey must be on the class, not the member '
+          '`${member.name}`.',
+          element: member,
+          todo: 'Move it to `${element.name}`, or use a @jsonFactoryKey() '
+              'field if `toJson()` should write the key.',
+        );
+      }
+    }
+
     final annotated = [
       for (final field in element.fields)
         if (field.isOriginDeclaration)
@@ -177,6 +195,7 @@ class JsonFactoryCollector implements Builder {
     ConstantReader annotation,
   ) {
     final className = _registrableName(element);
+    _checkNoInheritedKeyField(element);
     final key = annotation.read('key').stringValue;
     if (key.isEmpty) {
       throw InvalidGenerationSource(
@@ -364,6 +383,27 @@ class JsonFactoryCollector implements Builder {
             element: element,
             todo: 'Add `@jsonFactoryKey() @override final String ${field.name} '
                 "= 'your_key';` and a `fromJson` to `${element.name}`.",
+          );
+        }
+      }
+    }
+  }
+
+  /// A `@JsonFactoryKey` class inheriting a `@jsonFactoryKey` field writes the
+  /// parent's key from `toJson()`, which doesn't decode back to it.
+  void _checkNoInheritedKeyField(ClassElement element) {
+    for (var parent = element.supertype?.element;
+        parent != null;
+        parent = parent.supertype?.element) {
+      for (final field in parent.fields) {
+        if (field.isOriginDeclaration && _keyChecker.hasAnnotationOf(field)) {
+          throw InvalidGenerationSource(
+            '`${element.name}` has @JsonFactoryKey but extends '
+            '`${parent.name}`, which has a @jsonFactoryKey field, so '
+            "`toJson()` would write `${parent.name}`'s key.",
+            element: element,
+            todo: 'Replace @JsonFactoryKey with `@jsonFactoryKey() @override '
+                "final String ${field.name} = 'your_key';`.",
           );
         }
       }

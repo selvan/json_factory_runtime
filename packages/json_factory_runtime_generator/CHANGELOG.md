@@ -1,3 +1,11 @@
+## 0.3.1
+
+- The build stops when `@JsonFactoryKey` is on a method, getter or field. It was
+  ignored, which left the class unregistered.
+- The build stops when a class with `@JsonFactoryKey` extends a class with a
+  `@jsonFactoryKey` field. Its `toJson()` wrote the parent's key, so the JSON
+  decoded back to the parent.
+
 ## 0.3.0
 
 - `@JsonFactoryKey('key')` registers a class with no key field. Its `toJson()`

@@ -1,6 +1,6 @@
 name: json_factory_runtime_generator
 description: build_runner builders that generate JSON factory mixins for json_serializable classes annotated with @jsonFactoryKey.
-version: 0.3.0
+version: 0.3.1
 
 environment:
   sdk: ^3.5.0

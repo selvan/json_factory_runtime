@@ -690,6 +690,84 @@ class Base {
 @JsonSerializable()
 class Bad extends Base {}
 ''', 'which has @JsonFactoryKey'));
+
+    group('on a member stops the build:', () {
+      String model(String member) => '''
+@JsonSerializable()
+class Bad {
+  Bad();
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad();
+  $member
+}
+''';
+
+      test(
+        'method',
+        () => expectError(
+          model("@JsonFactoryKey('bad') Map<String, dynamic> toJson() => {};"),
+          'not the member `toJson`',
+        ),
+      );
+      test(
+        'getter',
+        () => expectError(
+          model("@JsonFactoryKey('bad') String get k => 'bad';"),
+          'not the member `k`',
+        ),
+      );
+      test(
+        'field',
+        () => expectError(
+          model("@JsonFactoryKey('bad') final String k = 'bad';"),
+          'not the member `k`',
+        ),
+      );
+    });
+
+    test('a subclass of a class with a key field stops the build', () =>
+        expectError('''
+@JsonSerializable()
+class Base {
+  Base();
+  factory Base.fromJson(Map<String, dynamic> json) => Base();
+  Map<String, dynamic> toJson() => {};
+  @jsonFactoryKey()
+  final String k = 'base';
+}
+
+@JsonFactoryKey('bad')
+@JsonSerializable()
+class Bad extends Base {
+  Bad();
+  factory Bad.fromJson(Map<String, dynamic> json) => Bad();
+}
+''', "would write `Base`'s key"));
+
+    test('a subclass with a key field of a @JsonFactoryKey class builds',
+        () async {
+      final result = await _build({
+        'a|lib/child.dart': '''
+$_imports
+@JsonFactoryKey('base')
+@JsonSerializable()
+class Base {
+  Base();
+  factory Base.fromJson(Map<String, dynamic> json) => Base();
+  Map<String, dynamic> toJson() => {};
+}
+
+@JsonSerializable()
+class Child extends Base {
+  Child();
+  factory Child.fromJson(Map<String, dynamic> json) => Child();
+  @jsonFactoryKey()
+  final String k = 'child';
+}
+''',
+      });
+      expect(result.succeeded, isTrue, reason: _errors(result));
+      expect(_generated(result), contains("'child': i0.Child.fromJson"));
+    });
   });
 
   group('invalid usage is an error:', () {
