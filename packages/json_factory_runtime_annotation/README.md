@@ -29,4 +29,16 @@ final String factoryKey = 'member';
 
 `jsonFactoryKey` extends `JsonKey`, so `json_serializable` writes the key into `toJson()` (`"__type__": "user"`) and `fromJson` ignores it.
 
+To keep `toJson()` plain, put `@JsonFactoryKey` on the class instead. The generated `toJsonForFactory` then adds the key:
+
+```dart
+@JsonFactoryKey('user')
+@JsonSerializable()
+class User {
+  ...
+}
+```
+
+Use the field by default, and the class annotation when `toJson()` has to stay plain. The [generator's README](https://pub.dev/packages/json_factory_runtime_generator) compares the two.
+
 Add this package to `dependencies` and the generator to `dev_dependencies`. See the [generator's README](https://pub.dev/packages/json_factory_runtime_generator) for setup, configuration and the generated API.

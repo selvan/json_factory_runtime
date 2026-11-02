@@ -4,7 +4,7 @@ Generates mixins that turn JSON back into the right `json_serializable` class at
 
 | Package | Add as | Contains |
 |---|---|---|
-| `json_factory_runtime_annotation` | `dependencies` | `@jsonFactoryKey(...)` |
+| `json_factory_runtime_annotation` | `dependencies` | `@jsonFactoryKey(...)`, `@JsonFactoryKey(...)` |
 | `json_factory_runtime_generator` | `dev_dependencies` | build_runner builders (auto-applied) |
 
 The annotation has to be a normal dependency because your `lib/` code imports it. The generator is dev-only:
@@ -13,6 +13,43 @@ The annotation has to be a normal dependency because your `lib/` code imports it
 dart pub add json_factory_runtime_annotation json_annotation
 dart pub add dev:json_factory_runtime_generator dev:json_serializable dev:build_runner
 ```
+
+## Choosing where to put the key
+
+A class gets its key in one of two ways. Both decode the same way, and both can be used in the same package.
+
+```dart
+// On a final field: toJson() writes the key.
+@JsonSerializable()
+class User {
+  @jsonFactoryKey()
+  final String factoryKey = 'user';
+  ...
+}
+
+// On the class: toJson() stays plain, and toJsonForFactory adds the key.
+@JsonFactoryKey('user')
+@JsonSerializable()
+class User {
+  ...
+}
+```
+
+**Use a final field by default.** All of the class's JSON then carries the key, so it can always be decoded through the factory, and you can't forget to add it.
+
+**Use the class annotation when `toJson()` has to stay plain**, for example when the same class is also sent to an API that rejects unknown fields. It also suits a class with a hand-written `toJson()` and no `@JsonSerializable`, or a key held in a named constant.
+
+| | Final field `@jsonFactoryKey()` | Class `@JsonFactoryKey('key')` |
+|---|---|---|
+| `toJson()` | Writes the key | Doesn't write the key |
+| Getting JSON with the key | `toJson()` or `toJsonForFactory(object)` | `toJsonForFactory(object)` only |
+| Nested objects | Keyed automatically, including nullable fields and lists | Plain, unless a non-nullable field adds `@JsonKey(toJson: Mapper.toJsonForFactory)` |
+| Class gains a field | Yes | No |
+| Key value | String literal, or enum constant with a string `@JsonValue` | Any constant string |
+| `@JsonSerializable` | Required | Optional |
+| Subclass that inherits `toJson()` | Must annotate its own key field | Needs its own `@JsonFactoryKey` if `@JsonSerializable` |
+
+A class can't use both forms, and a class with `@JsonFactoryKey` can't extend a class with a `@jsonFactoryKey` field. The build stops in either case. See [Rules](#rules).
 
 ## Usage
 
@@ -184,14 +221,14 @@ final items = (jsonDecode(body) as List)
 
 ### Round trip
 
-`toJson()` writes the key, so its output goes straight back through the factory:
+With a `@jsonFactoryKey` field, `toJson()` writes the key, so its output goes straight back through the factory:
 
 ```dart
 final json = const User(id: '1', name: 'Ada').toJson();
 final copy = JsonFactoryMapper.fromKeyedJsonAs<User>(json);
 ```
 
-The same applies to stored data, such as a cache or a local database, as long as it was written with `toJson()`.
+The same applies to stored data, such as a cache or a local database, as long as it was written with `toJson()`. With `@JsonFactoryKey` on the class, write the JSON with `toJsonForFactory` instead.
 
 ### Key passed separately
 
