@@ -1,6 +1,14 @@
 name: json_factory_runtime_annotation
-description: Annotation for json_factory_runtime_generator. Marks json_serializable classes to be registered in a generated factory mixin.
+description: Annotations for json_factory_runtime_generator, a build-time JSON factory generator for json_serializable classes.
 version: 0.3.0
+repository: https://github.com/selvan/json_factory_runtime/tree/main/packages/json_factory_runtime_annotation
+issue_tracker: https://github.com/selvan/json_factory_runtime/issues
+topics:
+  - json
+  - serialization
+  - codegen
+  - annotations
+  - build-runner
 
 environment:
   sdk: ^3.5.0

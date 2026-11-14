@@ -1,6 +1,14 @@
 name: json_factory_runtime_generator
-description: build_runner builders that generate JSON factory mixins for json_serializable classes annotated with @jsonFactoryKey.
+description: Build-time JSON factory generator for json_serializable classes. Decodes JSON to the right class from a key in the JSON, with no base class, mixin or toJson changes.
 version: 0.3.1
+repository: https://github.com/selvan/json_factory_runtime/tree/main/packages/json_factory_runtime_generator
+issue_tracker: https://github.com/selvan/json_factory_runtime/issues
+topics:
+  - json
+  - serialization
+  - codegen
+  - build-runner
+  - polymorphism
 
 environment:
   sdk: ^3.5.0
