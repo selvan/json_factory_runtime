@@ -1,3 +1,8 @@
+## 0.3.2
+
+- No code changes. Republished so pub.dev can verify the repository link,
+  which 0.3.1 pointed at before the matching pubspec was on GitHub.
+
 ## 0.3.1
 
 - The build stops when `@JsonFactoryKey` is on a method, getter or field. It was

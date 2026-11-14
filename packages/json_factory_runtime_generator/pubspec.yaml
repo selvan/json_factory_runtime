@@ -1,6 +1,6 @@
 name: json_factory_runtime_generator
 description: Build-time JSON factory generator for json_serializable classes. Decodes JSON to the right class from a key in the JSON, with no base class, mixin or toJson changes.
-version: 0.3.1
+version: 0.3.2
 repository: https://github.com/selvan/json_factory_runtime/tree/main/packages/json_factory_runtime_generator
 issue_tracker: https://github.com/selvan/json_factory_runtime/issues
 topics:
