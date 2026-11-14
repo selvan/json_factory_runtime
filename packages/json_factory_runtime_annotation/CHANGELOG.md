@@ -1,3 +1,8 @@
+## 0.3.1
+
+- No code changes. Republished so pub.dev can verify the repository link,
+  which 0.3.0 pointed at before the matching pubspec was on GitHub.
+
 ## 0.3.0
 
 - Add `@JsonFactoryKey('key')`, which goes on the class instead of a field.
